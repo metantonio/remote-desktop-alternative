@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "desk"
+version = "1.0.0"
+description = "A self-contained Python remote-desk (screen sharing + remote control), modelled on AnyDesk."
+requires-python = ">=3.10"
+dependencies = [
+    "websockets>=12.0",
+    "mss>=1.0",
+    "pynput>=1.0",
+    "Pillow>=9.0",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+gui = [
+    "pygame-ce>=2.5; python_version>='3.14'",
+    "pygame>=2.0; python_version<'3.14'",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+
+[project.scripts]
+desk = "desk.cli:main"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["desk*"]

@@ -1,0 +1,103 @@
+# Desk - Python Remote Desktop (AnyDesk Alternative)
+
+A self-contained remote desktop and screen-sharing system written in Python, modelled on the architecture of AnyDesk (separation between Host/Server controlled side and Client/Controller side) over a high-throughput binary frame protocol on top of WebSockets.
+
+---
+
+## 🚀 Key Features
+
+- **Real-Time Screen Streaming**: Accelerated native capture using `mss` (multi-monitor support, Windows per-monitor DPI awareness) with automatic fallback to `PIL.ImageGrab`.
+- **Native Input Injection**: Absolute mouse coordinates ($0$ to $65535$) and keyboard simulation via Win32 `SendInput` (supporting Unicode text, standard VK codes, and mouse buttons) with complete fallback to `pynput` on non-Windows platforms.
+- **Efficient Binary Protocol (`DESK`)**: Zero-overhead frame delimiter (`MAGIC "DESK"` [4B] + `TYPE` [1B] + `LEN` [4B LE] + `PAYLOAD`), minimizing latency and bandwidth consumption.
+- **Interactive Graphical Launcher (Tkinter)**: Clean English graphical interface to easily switch between sharing your screen or controlling a remote PC.
+- **Remote Display Window (Pygame)**: Interactive, letterboxed/pillarboxed resizable display client with smooth rendering and thread-safe event forwarding.
+- **Batch Script Launchers**: Quick one-click execution via `start.bat` using the local virtual environment.
+- **Headless Mode**: Scriptable and automated testing without opening any GUI window.
+
+---
+
+## 📦 Requirements & Installation
+
+The project uses the dependencies specified in `pyproject.toml`.
+
+Ensure your virtual environment is activated:
+
+```powershell
+# In Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
+
+# Install package with GUI and development dependencies:
+pip install -e .[gui,dev]
+```
+
+*(Note: On Python 3.14+, `pygame-ce` is supported and installed for SDL2 GUI rendering).*
+
+---
+
+## 🖥️ How to Run
+
+### Method 1: Using the Batch Launcher (Recommended)
+
+Simply double-click or run from command prompt:
+```cmd
+start.bat
+```
+This automatically locates your `.venv` and opens the **Desk Graphical Launcher** in English, where you can select whether you want to **Share This Computer (Host)** or **Control a Remote PC (Client)**.
+
+---
+
+### Method 2: Command Line (CLI)
+
+#### A. Graphical Interface
+```powershell
+python -m desk
+# or
+python -m desk gui
+```
+
+#### B. Start as Server / Host (Machine to be controlled)
+```powershell
+# Default settings (Port 8765, 30 FPS, Quality 80%):
+python -m desk server
+
+# Custom settings:
+python -m desk server --port 8765 --fps 60 --quality 85 --max-width 1920 --max-height 1080
+```
+The console will display your active local IP addresses for easy remote connection within your LAN or VPN (e.g. Tailscale, ZeroTier).
+
+#### C. Start as Client / Controller (Machine controlling the remote PC)
+```powershell
+# Connect using remote IP and port:
+python -m desk client 192.168.1.50:8765
+
+# Or with full WebSocket URI:
+python -m desk client ws://192.168.1.50:8765
+
+# Headless mode (no GUI window):
+python -m desk client 192.168.1.50:8765 --headless
+```
+
+---
+
+## 🎮 Controller Session Controls
+
+While connected to a remote desktop:
+- **Mouse**: Move, click, drag, right-click, and scroll on the remote machine.
+- **Keyboard**: Sends keystrokes and text directly to the remote active window.
+- **Exit Session**: Press **Shift + ESC** or close the Pygame window.
+
+---
+
+## 🧪 Running Unit & Integration Tests
+
+To run the complete test suite:
+```powershell
+pytest
+```
+
+The tests verify:
+- Binary protocol frame encoding, decoding, partial frames, and stream fragmentation.
+- Bidirectional client $\leftrightarrow$ server WebSocket communication over loopback.
+- Mouse movement, button clicks, keyboard presses, and text injection into fake injectors.
+- Video frame and screen dimension negotiation (`SCREEN` and `FRAME`).
+- Command-line parsing and local IP discovery.
