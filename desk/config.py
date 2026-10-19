@@ -15,9 +15,10 @@ class Config:
         self.ping_interval = float(kw.get("ping_interval", "3.0"))
         self.reconnect_delay = float(kw.get("reconnect_delay", "2.0"))
         self.name = kw.get("name", os.getenv("DESK_NAME", "desk"))
+        self.password = str(kw.get("password", os.getenv("DESK_PASSWORD", "")))
 
     def to_hello(self, role: str, screen_w: int, screen_h: int) -> dict:
-        return {
+        data = {
             "name": self.name,
             "role": role,
             "screen_w": screen_w,
@@ -28,6 +29,9 @@ class Config:
             "max_height": self.max_height,
             "protocol": "desk/1.0",
         }
+        if self.password:
+            data["password"] = self.password
+        return data
 
     def to_dict(self) -> dict:
         return dict(self.__dict__)

@@ -65,7 +65,7 @@ class DeskLauncherApp:
 
         # Main notebook/tabs container
         notebook = ttk.Notebook(self.root)
-        notebook.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
+        notebook.pack(fill=tk.BOTH, expand=True, padx=12, pady=10)
 
         # Tab 1: Share this screen (Server)
         self.tab_share = ttk.Frame(notebook)
@@ -93,7 +93,7 @@ class DeskLauncherApp:
         status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
     def _build_share_tab(self, parent: ttk.Frame):
-        pad_frame = ttk.Frame(parent, padding=14)
+        pad_frame = ttk.Frame(parent, padding=12)
         pad_frame.pack(fill=tk.BOTH, expand=True)
 
         desc = ttk.Label(
@@ -101,11 +101,11 @@ class DeskLauncherApp:
             text="Allow another computer to view and control your desktop.",
             font=("Segoe UI", 10),
         )
-        desc.pack(anchor=tk.W, pady=(0, 10))
+        desc.pack(anchor=tk.W, pady=(0, 8))
 
         # Local Addresses box
-        addr_box = ttk.LabelFrame(pad_frame, text="Your Connection Address", padding=10)
-        addr_box.pack(fill=tk.X, pady=(0, 12))
+        addr_box = ttk.LabelFrame(pad_frame, text="Your Connection Address", padding=8)
+        addr_box.pack(fill=tk.X, pady=(0, 8))
 
         self.local_ips = get_local_ips()
         primary_ip = self.local_ips[0] if self.local_ips else "127.0.0.1"
@@ -120,23 +120,55 @@ class DeskLauncherApp:
         copy_btn = ttk.Button(addr_row, text="Copy", width=7, command=self._copy_address)
         copy_btn.pack(side=tk.RIGHT)
 
+        # Security box (Password)
+        sec_box = ttk.LabelFrame(pad_frame, text="Security (Optional)", padding=8)
+        sec_box.pack(fill=tk.X, pady=(0, 8))
+
+        sec_row = ttk.Frame(sec_box)
+        sec_row.pack(fill=tk.X)
+
+        ttk.Label(sec_row, text="Password:").pack(side=tk.LEFT, padx=(0, 6))
+        self.host_pass_var = tk.StringVar(value="")
+        self.host_pass_entry = ttk.Entry(sec_row, textvariable=self.host_pass_var, show="*", font=("Consolas", 10), width=18)
+        self.host_pass_entry.pack(side=tk.LEFT, padx=(0, 6))
+
+        self.host_show_pass = False
+        def toggle_host_pass():
+            self.host_show_pass = not self.host_show_pass
+            self.host_pass_entry.config(show="" if self.host_show_pass else "*")
+            btn_show_host.config(text="Hide" if self.host_show_pass else "Show")
+
+        btn_show_host = ttk.Button(sec_row, text="Show", width=5, command=toggle_host_pass)
+        btn_show_host.pack(side=tk.LEFT, padx=(0, 6))
+
+        def generate_pin():
+            import random
+            pin = f"{random.randint(100000, 999999)}"
+            self.host_pass_var.set(pin)
+            self.host_show_pass = True
+            self.host_pass_entry.config(show="")
+            btn_show_host.config(text="Hide")
+
+        btn_pin = ttk.Button(sec_row, text="Generate PIN", command=generate_pin)
+        btn_pin.pack(side=tk.LEFT)
+
         # Options: Port, FPS, Quality
         opts_frame = ttk.Frame(pad_frame)
-        opts_frame.pack(fill=tk.X, pady=(0, 15))
+        opts_frame.pack(fill=tk.X, pady=(0, 10))
 
         ttk.Label(opts_frame, text="Port:").grid(row=0, column=0, sticky=tk.W, padx=(0, 4), pady=4)
         self.port_var = tk.StringVar(value="8765")
-        port_entry = ttk.Entry(opts_frame, textvariable=self.port_var, width=8)
-        port_entry.grid(row=0, column=1, padx=(0, 16), pady=4)
+        port_entry = ttk.Entry(opts_frame, textvariable=self.port_var, width=7)
+        port_entry.grid(row=0, column=1, padx=(0, 14), pady=4)
 
         ttk.Label(opts_frame, text="FPS:").grid(row=0, column=2, sticky=tk.W, padx=(0, 4), pady=4)
         self.fps_var = tk.StringVar(value="30")
-        fps_combo = ttk.Combobox(opts_frame, textvariable=self.fps_var, values=["15", "30", "60"], width=6, state="readonly")
-        fps_combo.grid(row=0, column=3, padx=(0, 16), pady=4)
+        fps_combo = ttk.Combobox(opts_frame, textvariable=self.fps_var, values=["15", "30", "60"], width=5, state="readonly")
+        fps_combo.grid(row=0, column=3, padx=(0, 14), pady=4)
 
         ttk.Label(opts_frame, text="Quality:").grid(row=0, column=4, sticky=tk.W, padx=(0, 4), pady=4)
         self.qual_var = tk.StringVar(value="80")
-        qual_combo = ttk.Combobox(opts_frame, textvariable=self.qual_var, values=["60", "75", "80", "90"], width=6, state="readonly")
+        qual_combo = ttk.Combobox(opts_frame, textvariable=self.qual_var, values=["60", "75", "80", "90"], width=5, state="readonly")
         qual_combo.grid(row=0, column=5, pady=4)
 
         # Start / Stop Button
@@ -152,10 +184,10 @@ class DeskLauncherApp:
             height=2,
             command=self._toggle_server,
         )
-        self.btn_server_toggle.pack(fill=tk.X, pady=(6, 0))
+        self.btn_server_toggle.pack(fill=tk.X, pady=(4, 0))
 
     def _build_control_tab(self, parent: ttk.Frame):
-        pad_frame = ttk.Frame(parent, padding=14)
+        pad_frame = ttk.Frame(parent, padding=12)
         pad_frame.pack(fill=tk.BOTH, expand=True)
 
         desc = ttk.Label(
@@ -163,13 +195,13 @@ class DeskLauncherApp:
             text="Connect to a remote computer to view screen and control inputs.",
             font=("Segoe UI", 10),
         )
-        desc.pack(anchor=tk.W, pady=(0, 14))
+        desc.pack(anchor=tk.W, pady=(0, 10))
 
         # Remote target box
-        target_box = ttk.LabelFrame(pad_frame, text="Remote Address", padding=12)
-        target_box.pack(fill=tk.X, pady=(0, 15))
+        target_box = ttk.LabelFrame(pad_frame, text="Remote Address", padding=10)
+        target_box.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Label(target_box, text="Enter the IP and port of the remote computer:").pack(anchor=tk.W, pady=(0, 6))
+        ttk.Label(target_box, text="Enter the IP and port of the remote computer:").pack(anchor=tk.W, pady=(0, 4))
 
         self.remote_addr_var = tk.StringVar(value="")
         self.remote_entry = ttk.Entry(target_box, textvariable=self.remote_addr_var, font=("Consolas", 11))
@@ -184,6 +216,27 @@ class DeskLauncherApp:
         )
         hint.pack(anchor=tk.W)
 
+        # Client Password Box
+        client_sec_box = ttk.LabelFrame(pad_frame, text="Password (if host is protected)", padding=10)
+        client_sec_box.pack(fill=tk.X, pady=(0, 12))
+
+        csec_row = ttk.Frame(client_sec_box)
+        csec_row.pack(fill=tk.X)
+
+        ttk.Label(csec_row, text="Password / PIN:").pack(side=tk.LEFT, padx=(0, 6))
+        self.client_pass_var = tk.StringVar(value="")
+        self.client_pass_entry = ttk.Entry(csec_row, textvariable=self.client_pass_var, show="*", font=("Consolas", 10), width=20)
+        self.client_pass_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 6))
+
+        self.client_show_pass = False
+        def toggle_client_pass():
+            self.client_show_pass = not self.client_show_pass
+            self.client_pass_entry.config(show="" if self.client_show_pass else "*")
+            btn_show_client.config(text="Hide" if self.client_show_pass else "Show")
+
+        btn_show_client = ttk.Button(csec_row, text="Show", width=5, command=toggle_client_pass)
+        btn_show_client.pack(side=tk.RIGHT)
+
         # Connect Button
         self.btn_connect = tk.Button(
             pad_frame,
@@ -197,7 +250,7 @@ class DeskLauncherApp:
             height=2,
             command=self._connect_client,
         )
-        self.btn_connect.pack(fill=tk.X, pady=(10, 0))
+        self.btn_connect.pack(fill=tk.X, pady=(6, 0))
 
     def _copy_address(self):
         val = self.addr_var.get()
@@ -220,7 +273,8 @@ class DeskLauncherApp:
             messagebox.showerror("Invalid Input", "Please enter valid numeric values for Port, FPS and Quality.")
             return
 
-        cfg = Config(host="0.0.0.0", port=port, fps=fps, quality=quality)
+        password = self.host_pass_var.get().strip()
+        cfg = Config(host="0.0.0.0", port=port, fps=fps, quality=quality, password=password)
         capture = Capture(fps=fps, quality=quality)
         injector = Injector()
         self.server = DeskServer(cfg, capture, injector)
@@ -230,7 +284,8 @@ class DeskLauncherApp:
 
         self.server_running = True
         self.btn_server_toggle.config(text="Stop Sharing", bg="#dc3545", activebackground="#c82333")
-        self.status_var.set(f"Server LISTENING on port {port}. Ready for connections.")
+        sec_msg = " [Password Protected]" if password else " [No Password]"
+        self.status_var.set(f"Server LISTENING on port {port}. Ready for connections.{sec_msg}")
 
         def run():
             self.server_loop = asyncio.new_event_loop()
@@ -265,11 +320,12 @@ class DeskLauncherApp:
             else:
                 target = f"ws://{target}:8765"
 
+        password = self.client_pass_var.get().strip()
         self.status_var.set(f"Connecting to {target}...")
 
         def launch_gui():
             cfg = Config()
-            gui = GuiClient(cfg, target)
+            gui = GuiClient(cfg, target, password=password)
             gui.start()
             self.root.after(0, lambda: self.status_var.set("Session ended."))
 

@@ -44,6 +44,7 @@ def run_server(args):
         max_width=args.max_width,
         max_height=args.max_height,
         name=args.name,
+        password=args.password,
     )
     capture = Capture(
         quality=cfg.quality,
@@ -62,11 +63,13 @@ def run_server(args):
     print("=" * 60)
     print(f" Status:    LISTENING on {cfg.host}:{cfg.port}")
     print(f" Screen:    {sw}x{sh} @ {cfg.fps} FPS (Quality: {cfg.quality}%)")
+    print(f" Security:  {'PASSWORD PROTECTED' if cfg.password else 'OPEN (No password)'}")
     print(f" Input:     {injector.backend.upper()} backend active")
     print(" Connect from another PC using:")
+    pass_flag = f" -p {cfg.password}" if cfg.password else ""
     for ip in local_ips:
-        print(f"   -> desk client ws://{ip}:{cfg.port}")
-        print(f"   -> python -m desk client ws://{ip}:{cfg.port}")
+        print(f"   -> desk client ws://{ip}:{cfg.port}{pass_flag}")
+        print(f"   -> python -m desk client ws://{ip}:{cfg.port}{pass_flag}")
     print("=" * 60)
     print(" Press Ctrl+C to terminate.")
 
@@ -88,10 +91,11 @@ def run_client(args):
             target = f"ws://{target}:8765"
 
     cfg = Config()
+    password = getattr(args, "password", "")
 
     if args.headless:
         print(f"Connecting headless to {target}...")
-        client = RemoteClient(target)
+        client = RemoteClient(target, password=password)
         try:
             asyncio.run(client.run())
         except KeyboardInterrupt:
@@ -100,19 +104,19 @@ def run_client(args):
         try:
             import pygame
         except ImportError:
-            print("ERROR: pygame is not installed. Run: pip install pygame")
+            print("ERROR: pygame is not installed. Run: pip install pygame-ce")
             print("Or connect in headless mode: desk client --headless <target>")
             sys.exit(1)
 
         print(f"Starting GUI client connecting to {target}...")
-        gui = GuiClient(cfg, target)
+        gui = GuiClient(cfg, target, password=password)
         gui.start()
 
 
 def interactive_menu():
     """Interactive text menu when launched without arguments."""
     print("=" * 50)
-    print("            DESK - Python AnyDesk Alternative")
+    print("            DESK - Python Remote Desktop")
     print("=" * 50)
     print(" 1) Start Server (Share this computer's screen)")
     print(" 2) Connect as Client (Control a remote computer)")
@@ -125,7 +129,6 @@ def interactive_menu():
         return
 
     if choice == "1":
-        parser = argparse.ArgumentParser()
         args = parse_server_args(["server"])
         run_server(args)
     elif choice == "2":
@@ -146,6 +149,7 @@ def parse_server_args(argv):
     parser = argparse.ArgumentParser(description="Start Desk remote server.")
     parser.add_argument("--host", default="0.0.0.0", help="Host address to bind (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=8765, help="Port to listen on (default: 8765)")
+    parser.add_argument("-p", "--password", default="", help="Optional connection password for security")
     parser.add_argument("--quality", type=int, default=80, help="JPEG quality 1-100 (default: 80)")
     parser.add_argument("--fps", type=int, default=30, help="Target FPS (default: 30)")
     parser.add_argument("--max-width", type=int, default=1920, help="Max streaming width")
@@ -157,6 +161,7 @@ def parse_server_args(argv):
 def parse_client_args(argv):
     parser = argparse.ArgumentParser(description="Connect to remote Desk server.")
     parser.add_argument("target", help="Remote address (e.g. ws://192.168.1.20:8765 or 192.168.1.20)")
+    parser.add_argument("-p", "--password", default="", help="Password for the remote host if protected")
     parser.add_argument("--headless", action="store_true", help="Run in headless mode without GUI")
     return parser.parse_args(argv[1:])
 

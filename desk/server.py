@@ -24,7 +24,9 @@ class DeskServer:
         self.ws.on_frame = self._on_client_frame
         self._running = False
         self.screen_w, self.screen_h = 0, 0
+        self.password = getattr(cfg, "password", "")
         self._initialized_conns = set()
+        self._authenticated_conns = set()
 
     async def run(self):
         self._running = True
@@ -56,7 +58,12 @@ class DeskServer:
             self.screen_w, self.screen_h = w, h
             active_names = set(self.ws.clients.keys())
             self._initialized_conns &= active_names
+            self._authenticated_conns &= active_names
+
             for conn in list(self.ws.clients.values()):
+                # If password protection is active, send frames only to authenticated peers
+                if self.password and conn.name not in self._authenticated_conns:
+                    continue
                 flags = 0
                 if conn.name not in self._initialized_conns:
                     self._initialized_conns.add(conn.name)
@@ -77,15 +84,39 @@ class DeskServer:
     async def dispatch(self, obj, conn=None):
         kind, data = obj
         if kind == "hello":
+            # Check password authentication
+            if self.password:
+                client_pass = str(data.get("password", "")) if isinstance(data, dict) else ""
+                if client_pass != self.password:
+                    log.warning("Authentication failed for client %r", getattr(conn, "name", "unknown"))
+                    if conn:
+                        await conn.push_frame(protocol.enc_hello(
+                            role="server", auth="unauthorized", error="Invalid password"
+                        ))
+                        await conn.push_frame(protocol.enc_log("Authentication failed: Invalid password."))
+                        await conn.close()
+                    return
+                if conn:
+                    self._authenticated_conns.add(conn.name)
+            else:
+                if conn:
+                    self._authenticated_conns.add(conn.name)
+
             target = [conn] if conn else list(self.ws.clients.values())
             for c in target:
                 await c.push_frame(protocol.enc_hello(
-                    role="server", name=self.cfg.name,
+                    role="server", auth="ok", name=self.cfg.name,
                     screen_w=self.screen_w, screen_h=self.screen_h,
                     fps=self.cfg.fps, quality=self.cfg.quality))
                 if self.screen_w > 0 and self.screen_h > 0:
                     await c.push_frame(protocol.enc_screen(self.screen_w, self.screen_h))
-        elif kind == "ping":
+            return
+
+        # Restrict remote control and ping to authenticated clients
+        if self.password and conn and conn.name not in self._authenticated_conns:
+            return
+
+        if kind == "ping":
             target = [conn] if conn else list(self.ws.clients.values())
             for c in target:
                 await c.push_frame(protocol.enc_pong())

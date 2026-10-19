@@ -45,12 +45,15 @@ for d in "0123456789":
 class RemoteClient:
     """Headless client: connect, receive frames, optionally send input."""
 
-    def __init__(self, uri: str, on_frame: Optional[Callable] = None):
+    def __init__(self, uri: str, password: str = "", on_frame: Optional[Callable] = None):
         self.uri = uri
+        self.password = password
         self.on_frame = on_frame
         self.client = DeskClient(uri)
         self.remote_w = 0
         self.remote_h = 0
+        self.auth_status = "pending"
+        self.auth_error = ""
         self._running = False
         self._lock = threading.Lock()
         self._frame_q = queue.Queue(maxsize=128)
@@ -68,15 +71,28 @@ class RemoteClient:
 
     async def run(self):
         await self.client.connect()
-        await self.client.push_frame(protocol.enc_hello(
-            role="client", name="desk-client",
-            screen_w=0, screen_h=0, protocol="desk/1.0"))
+        hello_data = {
+            "role": "client",
+            "name": "desk-client",
+            "screen_w": 0,
+            "screen_h": 0,
+            "protocol": "desk/1.0",
+        }
+        if self.password:
+            hello_data["password"] = self.password
+        await self.client.push_frame(protocol.enc_hello(**hello_data))
         self._running = True
         hb = asyncio.create_task(self._heartbeat())
         try:
             async for obj in self.client.frames():
                 kind, data = obj
-                if kind == "screen":
+                if kind == "hello" and isinstance(data, dict):
+                    if data.get("auth") == "unauthorized":
+                        self.auth_status = "failed"
+                        self.auth_error = data.get("error", "Invalid password")
+                    else:
+                        self.auth_status = "ok"
+                elif kind == "screen":
                     self.remote_w, self.remote_h = data
                 if self.on_frame:
                     try:
@@ -201,10 +217,11 @@ class FrameQueue:
 class GuiClient:
     """pygame window displaying the remote screen + input forwarding."""
 
-    def __init__(self, cfg, uri: str):
+    def __init__(self, cfg, uri: str, password: str = ""):
         self.cfg = cfg
         self.uri = uri
-        self.remote = RemoteClient(uri)
+        self.password = password
+        self.remote = RemoteClient(uri, password=password)
         self.running = True
         self._surface = None
         self._size = (1280, 720)
@@ -329,8 +346,15 @@ class GuiClient:
             self.screen.blit(scaled_surf, (ox, oy))
             pygame.draw.rect(self.screen, (70, 70, 80), (ox, oy, dw, dh), 1)
         else:
-            msg = "Connecting to remote desk..." if self.remote.is_alive() else "Disconnected."
-            txt = self._font.render(msg, True, (180, 180, 190))
+            if self.remote.auth_status == "failed":
+                msg = f"ACCESS DENIED: {self.remote.auth_error or 'Invalid password'}."
+                txt = self._font.render(msg, True, (255, 80, 80))
+            elif self.remote.is_alive():
+                msg = "Connecting to remote desk..."
+                txt = self._font.render(msg, True, (180, 180, 190))
+            else:
+                msg = "Disconnected."
+                txt = self._font.render(msg, True, (180, 180, 190))
             self.screen.blit(txt, (sw // 2 - txt.get_width() // 2, sh // 2 - txt.get_height() // 2))
 
         # Status overlay at top

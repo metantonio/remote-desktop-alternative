@@ -57,24 +57,30 @@ python -m desk gui
 
 #### B. Start as Server / Host (Machine to be controlled)
 ```powershell
-# Default settings (Port 8765, 30 FPS, Quality 80%):
+# Default settings (Port 8765, 30 FPS, Quality 80%, No password):
 python -m desk server
 
+# With Password Protection (recommended for port forwarding / public access):
+python -m desk server --password "YourSecretPINOrPass"
+
 # Custom settings:
-python -m desk server --port 8765 --fps 60 --quality 85 --max-width 1920 --max-height 1080
+python -m desk server --port 8765 --password "secret123" --fps 60 --quality 85
 ```
 The console will display your active local IP addresses for easy remote connection within your LAN or VPN (e.g. Tailscale, ZeroTier).
 
 #### C. Start as Client / Controller (Machine controlling the remote PC)
 ```powershell
-# Connect using remote IP and port:
+# Connect to host without password:
 python -m desk client 192.168.1.50:8765
 
+# Connect to a password-protected host:
+python -m desk client 192.168.1.50:8765 -p "YourSecretPINOrPass"
+
 # Or with full WebSocket URI:
-python -m desk client ws://192.168.1.50:8765
+python -m desk client ws://192.168.1.50:8765 -p "secret123"
 
 # Headless mode (no GUI window):
-python -m desk client 192.168.1.50:8765 --headless
+python -m desk client 192.168.1.50:8765 -p "secret123" --headless
 ```
 
 ---

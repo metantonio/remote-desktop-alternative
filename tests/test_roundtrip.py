@@ -210,3 +210,39 @@ async def test_ping_pong():
         pass
     server._running = False
     await server.ws.stop()
+
+
+async def test_password_auth():
+    """Server with password rejects invalid password and accepts correct password."""
+    port = await _find_free_port()
+    capture = FakeCapture()
+    injector = FakeInjector()
+    server = DeskServer(Cfg(port=port, fps=5), capture, injector)
+    server.password = "secret123"
+    server._running = True
+    await server.ws.start()
+    cap_task = asyncio.create_task(server._capture_loop())
+
+    # 1. Connect with wrong password -> rejected
+    client_bad = RemoteClient(f"ws://127.0.0.1:{port}", password="wrong")
+    client_bad_task = asyncio.create_task(client_bad.run())
+    await asyncio.sleep(0.4)
+    assert client_bad.auth_status == "failed"
+    client_bad_task.cancel()
+
+    # 2. Connect with correct password -> accepted
+    client_ok = RemoteClient(f"ws://127.0.0.1:{port}", password="secret123")
+    client_ok_task = asyncio.create_task(client_ok.run())
+    await asyncio.sleep(0.4)
+    assert client_ok.auth_status == "ok"
+    assert client_ok.remote_w == 12 and client_ok.remote_h == 8
+
+    await client_ok.stop()
+    client_ok_task.cancel()
+    cap_task.cancel()
+    try:
+        await cap_task
+    except asyncio.CancelledError:
+        pass
+    server._running = False
+    await server.ws.stop()
