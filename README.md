@@ -8,7 +8,8 @@ A self-contained remote desktop and screen-sharing system written in Python, mod
 
 - **Real-Time Screen Streaming**: Accelerated native capture using `mss` (multi-monitor support, Windows per-monitor DPI awareness) with automatic fallback to `PIL.ImageGrab`.
 - **Native Input Injection**: Absolute mouse coordinates ($0$ to $65535$) and keyboard simulation via Win32 `SendInput` (supporting Unicode text, standard VK codes, and mouse buttons) with complete fallback to `pynput` on non-Windows platforms.
-- **Efficient Binary Protocol (`DESK`)**: Zero-overhead frame delimiter (`MAGIC "DESK"` [4B] + `TYPE` [1B] + `LEN` [4B LE] + `PAYLOAD`), minimizing latency and bandwidth consumption.
+- **Local Network Auto-Discovery (Nearby Desks)**: Automatic host detection via lightweight UDP broadcast beacons (no IP typing or network scanning required).
+- **Optional Password Protection**: End-to-end access validation for secure port forwarding and LAN connections with built-in PIN generator.
 - **Interactive Graphical Launcher (Tkinter)**: Clean English graphical interface to easily switch between sharing your screen or controlling a remote PC.
 - **Remote Display Window (Pygame)**: Interactive, letterboxed/pillarboxed resizable display client with smooth rendering and thread-safe event forwarding.
 - **Batch Script Launchers**: Quick one-click execution via `start.bat` using the local virtual environment.

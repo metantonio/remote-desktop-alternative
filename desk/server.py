@@ -12,6 +12,8 @@ from .transport import DeskWS
 from .capture import Capture
 from .injector import Injector
 
+from .discovery import BeaconBroadcaster
+
 log = logging.getLogger("desk.server")
 
 
@@ -27,10 +29,18 @@ class DeskServer:
         self.password = getattr(cfg, "password", "")
         self._initialized_conns = set()
         self._authenticated_conns = set()
+        disc_port = getattr(cfg, "discovery_port", 8766)
+        self._beacon = BeaconBroadcaster(
+            port=self.cfg.port,
+            discovery_port=disc_port,
+            name=self.cfg.name,
+            protected=bool(self.password),
+        )
 
     async def run(self):
         self._running = True
         await self.ws.start()
+        self._beacon.start()
         cap = asyncio.create_task(self._capture_loop())
         try:
             while self._running:
@@ -38,6 +48,7 @@ class DeskServer:
         except asyncio.CancelledError:
             pass
         finally:
+            self._beacon.stop()
             cap.cancel()
             try:
                 await cap
@@ -139,4 +150,5 @@ class DeskServer:
 
     async def stop(self):
         self._running = False
+        self._beacon.stop()
         await self.ws.stop()

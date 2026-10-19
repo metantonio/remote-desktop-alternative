@@ -14,6 +14,7 @@ from .injector import Injector
 from .server import DeskServer
 from .client import GuiClient
 from .cli import get_local_ips
+from .discovery import BeaconListener
 
 log = logging.getLogger("desk.launcher")
 
@@ -22,7 +23,7 @@ class DeskLauncherApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("Desk - Remote Desktop")
-        self.root.geometry("520x460")
+        self.root.geometry("560x580")
         self.root.resizable(False, False)
 
         # Style configuration
@@ -39,6 +40,10 @@ class DeskLauncherApp:
 
         self._build_ui()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        # Start auto-discovery listener
+        self.listener = BeaconListener(on_update=self._on_discovered_devices)
+        self.listener.start()
 
     def _build_ui(self):
         # Header
@@ -237,6 +242,24 @@ class DeskLauncherApp:
         btn_show_client = ttk.Button(csec_row, text="Show", width=5, command=toggle_client_pass)
         btn_show_client.pack(side=tk.RIGHT)
 
+        # Discovered computers box
+        disc_frame = ttk.LabelFrame(pad_frame, text="Discovered Desks on Local Network", padding=6)
+        disc_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+
+        columns = ("name", "address", "security")
+        self.disc_tree = ttk.Treeview(disc_frame, columns=columns, show="headings", height=4, selectmode="browse")
+        self.disc_tree.heading("name", text="Device Name")
+        self.disc_tree.heading("address", text="IP Address")
+        self.disc_tree.heading("security", text="Protection")
+
+        self.disc_tree.column("name", width=170)
+        self.disc_tree.column("address", width=190)
+        self.disc_tree.column("security", width=110)
+        self.disc_tree.pack(fill=tk.BOTH, expand=True)
+
+        self.disc_tree.bind("<<TreeviewSelect>>", self._on_select_discovered)
+        self.disc_tree.bind("<Double-1>", self._on_double_click_discovered)
+
         # Connect Button
         self.btn_connect = tk.Button(
             pad_frame,
@@ -250,7 +273,35 @@ class DeskLauncherApp:
             height=2,
             command=self._connect_client,
         )
-        self.btn_connect.pack(fill=tk.X, pady=(6, 0))
+        self.btn_connect.pack(fill=tk.X, pady=(4, 0))
+
+    def _on_select_discovered(self, event):
+        sel = self.disc_tree.selection()
+        if not sel:
+            return
+        item = self.disc_tree.item(sel[0])
+        values = item.get("values", [])
+        if len(values) >= 2:
+            self.remote_addr_var.set(str(values[1]))
+
+    def _on_double_click_discovered(self, event):
+        self._on_select_discovered(event)
+        self._connect_client()
+
+    def _on_discovered_devices(self, devices: list[dict]):
+        def update():
+            selected_addr = self.remote_addr_var.get()
+            self.disc_tree.delete(*self.disc_tree.get_children())
+            for dev in devices:
+                sec = "Protected" if dev.get("protected") else "Open"
+                addr = f"{dev['ip']}:{dev['port']}"
+                item_id = self.disc_tree.insert("", tk.END, values=(dev["name"], addr, sec))
+                if addr == selected_addr:
+                    self.disc_tree.selection_set(item_id)
+        try:
+            self.root.after(0, update)
+        except Exception:
+            pass
 
     def _copy_address(self):
         val = self.addr_var.get()
@@ -333,6 +384,8 @@ class DeskLauncherApp:
         t.start()
 
     def _on_close(self):
+        if hasattr(self, "listener"):
+            self.listener.stop()
         if self.server_running:
             self._stop_server()
         self.root.destroy()
