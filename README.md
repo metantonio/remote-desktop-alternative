@@ -37,13 +37,37 @@ pip install -e .[gui,dev]
 
 ## 🖥️ How to Run
 
-### Method 1: Using the Batch Launcher (Recommended)
+### Method 1: Using Script Launchers (Recommended)
 
-Simply double-click or run from command prompt:
-```cmd
-start.bat
-```
-This automatically locates your `.venv` and opens the **Desk Graphical Launcher** in English, where you can select whether you want to **Share This Computer (Host)** or **Control a Remote PC (Client)**.
+- **On Windows:** Double-click or run from command prompt:
+  ```cmd
+  start.bat
+  ```
+
+- **On macOS / Linux:** Make executable and run:
+  ```bash
+  chmod +x start.sh
+  ./start.sh
+  ```
+
+This automatically locates your virtual environment (`.venv`) and opens the **Desk Graphical Launcher** in English, where you can select whether you want to **Share This Computer (Host)** or **Control a Remote PC (Client)**.
+
+---
+
+## 🍏 macOS Setup & Required Permissions
+
+If your **Mac is the Host (the machine being controlled and sharing its screen)**, macOS privacy protections require granting two permissions:
+
+1. **Screen Recording Permission** (Allows streaming your desktop):
+   - Open **System Settings** (or System Preferences) $\to$ **Privacy & Security** $\to$ **Screen Recording**.
+   - Enable the toggle for **Terminal** (or **iTerm2** / Python / your IDE).
+   - If prompted, restart Terminal.
+
+2. **Accessibility Permission** (Allows simulating mouse clicks and keystrokes):
+   - Open **System Settings** $\to$ **Privacy & Security** $\to$ **Accessibility**.
+   - Enable the toggle for **Terminal** (or your terminal application).
+
+*(If your Mac is only connecting as a **Client** to control another PC, no special system permissions are required).*
 
 ---
 
