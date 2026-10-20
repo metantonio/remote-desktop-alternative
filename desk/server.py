@@ -59,22 +59,29 @@ class DeskServer:
     async def _capture_loop(self):
         interval = 1.0 / max(1.0, float(self.cfg.fps))
         while self._running:
+            # Only grab screen when at least one client is connected and authenticated
+            active_clients = [
+                conn for conn in self.ws.clients.values()
+                if not self.password or conn.name in self._authenticated_conns
+            ]
+            if not active_clients:
+                await asyncio.sleep(0.25)
+                continue
+
             t0 = asyncio.get_running_loop().time()
             try:
                 w, h, img = await asyncio.to_thread(self.capture.grab)
             except Exception as ex:
-                log.exception("capture failed: %s", ex)
-                await asyncio.sleep(1.0)
+                log.warning("Capture failed (check screen recording permissions): %s", ex)
+                await asyncio.sleep(2.0)
                 continue
+
             self.screen_w, self.screen_h = w, h
             active_names = set(self.ws.clients.keys())
             self._initialized_conns &= active_names
             self._authenticated_conns &= active_names
 
-            for conn in list(self.ws.clients.values()):
-                # If password protection is active, send frames only to authenticated peers
-                if self.password and conn.name not in self._authenticated_conns:
-                    continue
+            for conn in active_clients:
                 flags = 0
                 if conn.name not in self._initialized_conns:
                     self._initialized_conns.add(conn.name)

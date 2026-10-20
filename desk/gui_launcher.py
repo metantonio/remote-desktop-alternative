@@ -1,5 +1,6 @@
 """Graphical launcher for Desk (AnyDesk alternative).
-Provides a user-friendly GUI to either share this screen or control a remote machine.
+Provides a modern, robust, cross-platform GUI to share or control a desktop.
+Immune to macOS Dark Mode / Tkinter theme glitches.
 """
 from __future__ import annotations
 import asyncio
@@ -19,28 +20,43 @@ from .discovery import BeaconListener
 
 log = logging.getLogger("desk.launcher")
 
+# Cross-platform fonts
+FONT_FAMILY = "Helvetica" if sys.platform == "darwin" else "Segoe UI"
+FONT_MONO = "SF Mono" if sys.platform == "darwin" else "Consolas"
+
+# Unified sleek modern palette (works identically on Windows, macOS Dark/Light, Linux)
+COLOR_BG_ROOT = "#16191f"
+COLOR_BG_HEADER = "#0f1115"
+COLOR_BG_CARD = "#21252d"
+COLOR_BORDER = "#323742"
+COLOR_TEXT = "#f1f5f9"
+COLOR_TEXT_MUTED = "#94a3b8"
+COLOR_INPUT_BG = "#0f1115"
+COLOR_INPUT_FG = "#ffffff"
+COLOR_BTN_BLUE = "#2563eb"
+COLOR_BTN_BLUE_ACTIVE = "#1d4ed8"
+COLOR_BTN_GREEN = "#16a34a"
+COLOR_BTN_GREEN_ACTIVE = "#15803d"
+COLOR_BTN_RED = "#dc2626"
+COLOR_BTN_RED_ACTIVE = "#b91c1c"
+COLOR_BTN_SEC = "#333842"
+COLOR_BTN_SEC_ACTIVE = "#404652"
+
 
 class DeskLauncherApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("Desk - Remote Desktop")
-        self.root.geometry("580x650")
-        self.root.minsize(540, 580)
-        self.root.resizable(True, True)
-
-        # Style configuration - use native 'aqua' on macOS, 'clam' on Linux/Windows
-        self.style = ttk.Style()
-        if sys.platform != "darwin":
-            try:
-                self.style.theme_use("clam")
-            except Exception:
-                pass
+        self.root.geometry("600x670")
+        self.root.minsize(560, 600)
+        self.root.configure(bg=COLOR_BG_ROOT)
 
         self.server: DeskServer | None = None
         self.server_thread: threading.Thread | None = None
         self.server_loop: asyncio.AbstractEventLoop | None = None
         self.server_running = False
 
+        self._init_ttk_style()
         self._build_ui()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -48,106 +64,243 @@ class DeskLauncherApp:
         self.listener = BeaconListener(on_update=self._on_discovered_devices)
         self.listener.start()
 
+    def _init_ttk_style(self):
+        style = ttk.Style()
+        try:
+            style.theme_use("clam")
+        except Exception:
+            pass
+        # Style treeview for discovered computers
+        style.configure(
+            "Discovered.Treeview",
+            background=COLOR_INPUT_BG,
+            foreground=COLOR_TEXT,
+            fieldbackground=COLOR_INPUT_BG,
+            borderwidth=0,
+            rowheight=26,
+            font=(FONT_FAMILY, 9),
+        )
+        style.configure(
+            "Discovered.Treeview.Heading",
+            background=COLOR_BG_CARD,
+            foreground=COLOR_TEXT,
+            relief="flat",
+            font=(FONT_FAMILY, 9, "bold"),
+        )
+        style.map("Discovered.Treeview", background=[("selected", COLOR_BTN_BLUE)])
+
     def _build_ui(self):
-        # Header
-        header_frame = tk.Frame(self.root, bg="#1e222d", height=65)
-        header_frame.pack(fill=tk.X)
+        # 1. Header Frame
+        header = tk.Frame(self.root, bg=COLOR_BG_HEADER, height=60)
+        header.pack(fill=tk.X)
 
-        title_label = tk.Label(
-            header_frame,
+        title = tk.Label(
+            header,
             text="DESK REMOTE",
-            font=("Segoe UI", 16, "bold"),
-            fg="#ffffff",
-            bg="#1e222d",
+            font=(FONT_FAMILY, 15, "bold"),
+            fg=COLOR_TEXT,
+            bg=COLOR_BG_HEADER,
         )
-        title_label.pack(side=tk.LEFT, padx=18, pady=12)
+        title.pack(side=tk.LEFT, padx=18, pady=12)
 
-        subtitle_label = tk.Label(
-            header_frame,
-            text="Python Remote Desktop Alternative",
-            font=("Segoe UI", 9),
-            fg="#a0aab8",
-            bg="#1e222d",
+        subtitle = tk.Label(
+            header,
+            text="v1.1 Cross-Platform Remote Desktop",
+            font=(FONT_FAMILY, 9),
+            fg=COLOR_TEXT_MUTED,
+            bg=COLOR_BG_HEADER,
         )
-        subtitle_label.pack(side=tk.LEFT, pady=18)
+        subtitle.pack(side=tk.LEFT, pady=16)
 
-        # Main notebook/tabs container
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=12, pady=10)
+        # 2. Modern Navigation Tabs
+        nav_frame = tk.Frame(self.root, bg=COLOR_BG_HEADER, height=44)
+        nav_frame.pack(fill=tk.X)
 
-        # Tab 1: Share this screen (Server)
-        self.tab_share = ttk.Frame(self.notebook)
-        self.notebook.add(self.tab_share, text=" 📤 Share This Computer (Host) ")
-        self._build_share_tab(self.tab_share)
+        self.btn_nav_share = tk.Button(
+            nav_frame,
+            text=" 📤 Share This Computer (Host) ",
+            font=(FONT_FAMILY, 10, "bold"),
+            relief=tk.FLAT,
+            bd=0,
+            cursor="hand2",
+            padx=14,
+            pady=8,
+            command=self._switch_to_share,
+        )
+        self.btn_nav_share.pack(side=tk.LEFT, padx=(18, 6), pady=(0, 8))
 
-        # Tab 2: Control remote screen (Client)
-        self.tab_control = ttk.Frame(self.notebook)
-        self.notebook.add(self.tab_control, text=" 💻 Control Remote PC (Client) ")
-        self._build_control_tab(self.tab_control)
+        self.btn_nav_client = tk.Button(
+            nav_frame,
+            text=" 💻 Control Remote PC (Client) ",
+            font=(FONT_FAMILY, 10, "bold"),
+            relief=tk.FLAT,
+            bd=0,
+            cursor="hand2",
+            padx=14,
+            pady=8,
+            command=self._switch_to_client,
+        )
+        self.btn_nav_client.pack(side=tk.LEFT, padx=6, pady=(0, 8))
 
-        # Status Bar
+        # 3. Main Content Container
+        self.main_content = tk.Frame(self.root, bg=COLOR_BG_ROOT)
+        self.main_content.pack(fill=tk.BOTH, expand=True, padx=14, pady=10)
+
+        # Tab 1: Share Container
+        self.share_container = tk.Frame(self.main_content, bg=COLOR_BG_ROOT)
+        self._build_share_view(self.share_container)
+
+        # Tab 2: Client Container
+        self.client_container = tk.Frame(self.main_content, bg=COLOR_BG_ROOT)
+        self._build_client_view(self.client_container)
+
+        # Start on Share view
+        self._switch_to_share()
+
+        # 4. Status Bar
         self.status_var = tk.StringVar(value="Ready.")
         status_bar = tk.Label(
             self.root,
             textvariable=self.status_var,
             bd=1,
-            relief=tk.SUNKEN,
+            relief=tk.FLAT,
             anchor=tk.W,
-            font=("Segoe UI", 9),
-            bg="#f0f2f5",
-            padx=8,
-            pady=3,
+            font=(FONT_FAMILY, 9),
+            bg=COLOR_BG_HEADER,
+            fg=COLOR_TEXT_MUTED,
+            padx=12,
+            pady=6,
         )
         status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
-    def _build_share_tab(self, parent: ttk.Frame):
-        pad_frame = ttk.Frame(parent, padding=12)
-        pad_frame.pack(fill=tk.BOTH, expand=True)
+    def _switch_to_share(self):
+        self.client_container.pack_forget()
+        self.share_container.pack(fill=tk.BOTH, expand=True)
+        self.btn_nav_share.config(bg=COLOR_BTN_BLUE, fg="#ffffff", activebackground=COLOR_BTN_BLUE_ACTIVE, activeforeground="#ffffff")
+        self.btn_nav_client.config(bg=COLOR_BTN_SEC, fg=COLOR_TEXT_MUTED, activebackground=COLOR_BTN_SEC_ACTIVE, activeforeground="#ffffff")
 
-        desc = ttk.Label(
-            pad_frame,
-            text="Allow another computer to view and control your desktop.",
-            font=("Segoe UI", 10),
+    def _switch_to_client(self):
+        self.share_container.pack_forget()
+        self.client_container.pack(fill=tk.BOTH, expand=True)
+        self.btn_nav_client.config(bg=COLOR_BTN_BLUE, fg="#ffffff", activebackground=COLOR_BTN_BLUE_ACTIVE, activeforeground="#ffffff")
+        self.btn_nav_share.config(bg=COLOR_BTN_SEC, fg=COLOR_TEXT_MUTED, activebackground=COLOR_BTN_SEC_ACTIVE, activeforeground="#ffffff")
+
+    def _build_share_view(self, parent: tk.Frame):
+        desc = tk.Label(
+            parent,
+            text="Allow another computer to view and control this desktop.",
+            font=(FONT_FAMILY, 10),
+            bg=COLOR_BG_ROOT,
+            fg=COLOR_TEXT_MUTED,
         )
-        desc.pack(anchor=tk.W, pady=(0, 8))
+        desc.pack(anchor=tk.W, pady=(0, 10))
 
-        # Local Addresses box
-        addr_box = ttk.LabelFrame(pad_frame, text="Your Connection Address", padding=8)
-        addr_box.pack(fill=tk.X, pady=(0, 8))
+        # Box 1: Address
+        addr_box = tk.LabelFrame(
+            parent,
+            text=" Connection Address (Give this to peer) ",
+            font=(FONT_FAMILY, 9, "bold"),
+            bg=COLOR_BG_CARD,
+            fg=COLOR_TEXT,
+            bd=1,
+            relief=tk.SOLID,
+            padx=12,
+            pady=10,
+        )
+        addr_box.pack(fill=tk.X, pady=(0, 10))
 
         self.local_ips = get_local_ips()
         primary_ip = self.local_ips[0] if self.local_ips else "127.0.0.1"
         self.addr_var = tk.StringVar(value=f"{primary_ip}:8765")
 
-        addr_row = ttk.Frame(addr_box)
+        addr_row = tk.Frame(addr_box, bg=COLOR_BG_CARD)
         addr_row.pack(fill=tk.X)
 
-        self.addr_entry = ttk.Entry(addr_row, textvariable=self.addr_var, font=("Consolas", 11), state="readonly")
-        self.addr_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 6))
+        self.addr_entry = tk.Entry(
+            addr_row,
+            textvariable=self.addr_var,
+            font=(FONT_MONO, 11, "bold"),
+            bg=COLOR_INPUT_BG,
+            fg=COLOR_INPUT_FG,
+            insertbackground="#ffffff",
+            relief=tk.FLAT,
+            bd=4,
+            state="readonly",
+        )
+        self.addr_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
 
-        copy_btn = ttk.Button(addr_row, text="Copy", width=7, command=self._copy_address)
-        copy_btn.pack(side=tk.RIGHT)
+        btn_copy = tk.Button(
+            addr_row,
+            text="Copy",
+            width=7,
+            bg=COLOR_BTN_SEC,
+            fg=COLOR_TEXT,
+            activebackground=COLOR_BTN_SEC_ACTIVE,
+            activeforeground="#ffffff",
+            relief=tk.FLAT,
+            command=self._copy_address,
+        )
+        btn_copy.pack(side=tk.RIGHT)
 
-        # Security box (Password)
-        sec_box = ttk.LabelFrame(pad_frame, text="Security (Optional)", padding=8)
-        sec_box.pack(fill=tk.X, pady=(0, 8))
+        # Box 2: Security (Password)
+        sec_box = tk.LabelFrame(
+            parent,
+            text=" Security & Authentication (Optional) ",
+            font=(FONT_FAMILY, 9, "bold"),
+            bg=COLOR_BG_CARD,
+            fg=COLOR_TEXT,
+            bd=1,
+            relief=tk.SOLID,
+            padx=12,
+            pady=10,
+        )
+        sec_box.pack(fill=tk.X, pady=(0, 10))
 
-        sec_row = ttk.Frame(sec_box)
+        sec_row = tk.Frame(sec_box, bg=COLOR_BG_CARD)
         sec_row.pack(fill=tk.X)
 
-        ttk.Label(sec_row, text="Password:").pack(side=tk.LEFT, padx=(0, 6))
+        tk.Label(
+            sec_row,
+            text="Password / PIN:",
+            font=(FONT_FAMILY, 10),
+            bg=COLOR_BG_CARD,
+            fg=COLOR_TEXT,
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
         self.host_pass_var = tk.StringVar(value="")
-        self.host_pass_entry = ttk.Entry(sec_row, textvariable=self.host_pass_var, show="*", font=("Consolas", 10), width=18)
-        self.host_pass_entry.pack(side=tk.LEFT, padx=(0, 6))
+        self.host_pass_entry = tk.Entry(
+            sec_row,
+            textvariable=self.host_pass_var,
+            show="*",
+            font=(FONT_MONO, 11),
+            bg=COLOR_INPUT_BG,
+            fg=COLOR_INPUT_FG,
+            insertbackground="#ffffff",
+            relief=tk.FLAT,
+            bd=4,
+            width=14,
+        )
+        self.host_pass_entry.pack(side=tk.LEFT, padx=(0, 8))
 
         self.host_show_pass = False
+
         def toggle_host_pass():
             self.host_show_pass = not self.host_show_pass
             self.host_pass_entry.config(show="" if self.host_show_pass else "*")
             btn_show_host.config(text="Hide" if self.host_show_pass else "Show")
 
-        btn_show_host = ttk.Button(sec_row, text="Show", width=5, command=toggle_host_pass)
-        btn_show_host.pack(side=tk.LEFT, padx=(0, 6))
+        btn_show_host = tk.Button(
+            sec_row,
+            text="Show",
+            width=5,
+            bg=COLOR_BTN_SEC,
+            fg=COLOR_TEXT,
+            activebackground=COLOR_BTN_SEC_ACTIVE,
+            activeforeground="#ffffff",
+            relief=tk.FLAT,
+            command=toggle_host_pass,
+        )
+        btn_show_host.pack(side=tk.LEFT, padx=(0, 8))
 
         def generate_pin():
             import random
@@ -157,110 +310,209 @@ class DeskLauncherApp:
             self.host_pass_entry.config(show="")
             btn_show_host.config(text="Hide")
 
-        btn_pin = ttk.Button(sec_row, text="Generate PIN", command=generate_pin)
+        btn_pin = tk.Button(
+            sec_row,
+            text="Generate PIN",
+            bg=COLOR_BTN_SEC,
+            fg=COLOR_TEXT,
+            activebackground=COLOR_BTN_SEC_ACTIVE,
+            activeforeground="#ffffff",
+            relief=tk.FLAT,
+            command=generate_pin,
+        )
         btn_pin.pack(side=tk.LEFT)
 
-        # Options: Port, FPS, Quality
-        opts_frame = ttk.Frame(pad_frame)
-        opts_frame.pack(fill=tk.X, pady=(0, 10))
+        # Box 3: Options (Port, FPS, Quality)
+        opts_box = tk.LabelFrame(
+            parent,
+            text=" Streaming Settings ",
+            font=(FONT_FAMILY, 9, "bold"),
+            bg=COLOR_BG_CARD,
+            fg=COLOR_TEXT,
+            bd=1,
+            relief=tk.SOLID,
+            padx=12,
+            pady=10,
+        )
+        opts_box.pack(fill=tk.X, pady=(0, 14))
 
-        ttk.Label(opts_frame, text="Port:").grid(row=0, column=0, sticky=tk.W, padx=(0, 4), pady=4)
+        opts_row = tk.Frame(opts_box, bg=COLOR_BG_CARD)
+        opts_row.pack(fill=tk.X)
+
+        tk.Label(opts_row, text="Port:", font=(FONT_FAMILY, 9), bg=COLOR_BG_CARD, fg=COLOR_TEXT_MUTED).pack(side=tk.LEFT, padx=(0, 4))
         self.port_var = tk.StringVar(value="8765")
-        port_entry = ttk.Entry(opts_frame, textvariable=self.port_var, width=7)
-        port_entry.grid(row=0, column=1, padx=(0, 14), pady=4)
+        port_entry = tk.Entry(opts_row, textvariable=self.port_var, width=6, bg=COLOR_INPUT_BG, fg=COLOR_INPUT_FG, insertbackground="#ffffff", relief=tk.FLAT, bd=3)
+        port_entry.pack(side=tk.LEFT, padx=(0, 16))
 
-        ttk.Label(opts_frame, text="FPS:").grid(row=0, column=2, sticky=tk.W, padx=(0, 4), pady=4)
+        tk.Label(opts_row, text="FPS:", font=(FONT_FAMILY, 9), bg=COLOR_BG_CARD, fg=COLOR_TEXT_MUTED).pack(side=tk.LEFT, padx=(0, 4))
         self.fps_var = tk.StringVar(value="30")
-        fps_combo = ttk.Combobox(opts_frame, textvariable=self.fps_var, values=["15", "30", "60"], width=5, state="readonly")
-        fps_combo.grid(row=0, column=3, padx=(0, 14), pady=4)
+        fps_combo = ttk.Combobox(opts_row, textvariable=self.fps_var, values=["15", "30", "60"], width=4, state="readonly")
+        fps_combo.pack(side=tk.LEFT, padx=(0, 16))
 
-        ttk.Label(opts_frame, text="Quality:").grid(row=0, column=4, sticky=tk.W, padx=(0, 4), pady=4)
+        tk.Label(opts_row, text="Quality:", font=(FONT_FAMILY, 9), bg=COLOR_BG_CARD, fg=COLOR_TEXT_MUTED).pack(side=tk.LEFT, padx=(0, 4))
         self.qual_var = tk.StringVar(value="80")
-        qual_combo = ttk.Combobox(opts_frame, textvariable=self.qual_var, values=["60", "75", "80", "90"], width=5, state="readonly")
-        qual_combo.grid(row=0, column=5, pady=4)
+        qual_combo = ttk.Combobox(opts_row, textvariable=self.qual_var, values=["60", "75", "80", "90"], width=4, state="readonly")
+        qual_combo.pack(side=tk.LEFT)
 
-        # Start / Stop Button
+        # Start / Stop Toggle Button
         self.btn_server_toggle = tk.Button(
-            pad_frame,
+            parent,
             text="Start Sharing",
-            font=("Segoe UI", 11, "bold"),
-            bg="#0066cc",
+            font=(FONT_FAMILY, 12, "bold"),
+            bg=COLOR_BTN_BLUE,
             fg="#ffffff",
-            activebackground="#0052a3",
+            activebackground=COLOR_BTN_BLUE_ACTIVE,
             activeforeground="#ffffff",
             relief=tk.FLAT,
             height=2,
+            cursor="hand2",
             command=self._toggle_server,
         )
-        self.btn_server_toggle.pack(fill=tk.X, pady=(4, 0))
+        self.btn_server_toggle.pack(fill=tk.X, pady=(4, 8))
 
-        # Quick-switch to Client mode
-        switch_frame = ttk.Frame(pad_frame)
-        switch_frame.pack(fill=tk.X, pady=(10, 0))
-        btn_switch_client = ttk.Button(
-            switch_frame,
-            text="Switch to Client Mode (Control Another PC) ➔",
-            command=lambda: self.notebook.select(self.tab_control),
+        # Bottom Switcher
+        btn_goto_client = tk.Button(
+            parent,
+            text="👉 Want to control another computer instead? Switch to Client Mode",
+            font=(FONT_FAMILY, 9),
+            bg=COLOR_BG_CARD,
+            fg=COLOR_TEXT_MUTED,
+            activebackground=COLOR_BTN_SEC_ACTIVE,
+            activeforeground="#ffffff",
+            relief=tk.FLAT,
+            pady=6,
+            command=self._switch_to_client,
         )
-        btn_switch_client.pack(fill=tk.X)
+        btn_goto_client.pack(fill=tk.X)
 
-    def _build_control_tab(self, parent: ttk.Frame):
-        pad_frame = ttk.Frame(parent, padding=12)
-        pad_frame.pack(fill=tk.BOTH, expand=True)
-
-        desc = ttk.Label(
-            pad_frame,
-            text="Connect to a remote computer to view screen and control inputs.",
-            font=("Segoe UI", 10),
+    def _build_client_view(self, parent: tk.Frame):
+        desc = tk.Label(
+            parent,
+            text="Connect to a remote computer to view and control its desktop.",
+            font=(FONT_FAMILY, 10),
+            bg=COLOR_BG_ROOT,
+            fg=COLOR_TEXT_MUTED,
         )
         desc.pack(anchor=tk.W, pady=(0, 10))
 
-        # Remote target box
-        target_box = ttk.LabelFrame(pad_frame, text="Remote Address", padding=10)
+        # Target Address Box
+        target_box = tk.LabelFrame(
+            parent,
+            text=" Remote Computer Address ",
+            font=(FONT_FAMILY, 9, "bold"),
+            bg=COLOR_BG_CARD,
+            fg=COLOR_TEXT,
+            bd=1,
+            relief=tk.SOLID,
+            padx=12,
+            pady=10,
+        )
         target_box.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Label(target_box, text="Enter the IP and port of the remote computer:").pack(anchor=tk.W, pady=(0, 4))
-
         self.remote_addr_var = tk.StringVar(value="")
-        self.remote_entry = ttk.Entry(target_box, textvariable=self.remote_addr_var, font=("Consolas", 11))
-        self.remote_entry.pack(fill=tk.X, pady=(0, 4))
-        self.remote_entry.focus_set()
-
-        hint = ttk.Label(
+        self.remote_entry = tk.Entry(
             target_box,
-            text="Examples: 192.168.1.50:8765  or  ws://10.0.0.12:8765",
-            font=("Segoe UI", 8),
-            foreground="#666666",
+            textvariable=self.remote_addr_var,
+            font=(FONT_MONO, 11),
+            bg=COLOR_INPUT_BG,
+            fg=COLOR_INPUT_FG,
+            insertbackground="#ffffff",
+            relief=tk.FLAT,
+            bd=4,
         )
-        hint.pack(anchor=tk.W)
+        self.remote_entry.pack(fill=tk.X, pady=(0, 4))
+
+        tk.Label(
+            target_box,
+            text="Example: 192.168.1.50:8765  or  ws://10.0.0.12:8765",
+            font=(FONT_FAMILY, 8),
+            bg=COLOR_BG_CARD,
+            fg=COLOR_TEXT_MUTED,
+        ).pack(anchor=tk.W)
 
         # Client Password Box
-        client_sec_box = ttk.LabelFrame(pad_frame, text="Password (if host is protected)", padding=10)
-        client_sec_box.pack(fill=tk.X, pady=(0, 12))
+        client_sec_box = tk.LabelFrame(
+            parent,
+            text=" Password (if remote host is protected) ",
+            font=(FONT_FAMILY, 9, "bold"),
+            bg=COLOR_BG_CARD,
+            fg=COLOR_TEXT,
+            bd=1,
+            relief=tk.SOLID,
+            padx=12,
+            pady=10,
+        )
+        client_sec_box.pack(fill=tk.X, pady=(0, 10))
 
-        csec_row = ttk.Frame(client_sec_box)
+        csec_row = tk.Frame(client_sec_box, bg=COLOR_BG_CARD)
         csec_row.pack(fill=tk.X)
 
-        ttk.Label(csec_row, text="Password / PIN:").pack(side=tk.LEFT, padx=(0, 6))
+        tk.Label(
+            csec_row,
+            text="Password / PIN:",
+            font=(FONT_FAMILY, 10),
+            bg=COLOR_BG_CARD,
+            fg=COLOR_TEXT,
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
         self.client_pass_var = tk.StringVar(value="")
-        self.client_pass_entry = ttk.Entry(csec_row, textvariable=self.client_pass_var, show="*", font=("Consolas", 10), width=20)
-        self.client_pass_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 6))
+        self.client_pass_entry = tk.Entry(
+            csec_row,
+            textvariable=self.client_pass_var,
+            show="*",
+            font=(FONT_MONO, 11),
+            bg=COLOR_INPUT_BG,
+            fg=COLOR_INPUT_FG,
+            insertbackground="#ffffff",
+            relief=tk.FLAT,
+            bd=4,
+            width=16,
+        )
+        self.client_pass_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
 
         self.client_show_pass = False
+
         def toggle_client_pass():
             self.client_show_pass = not self.client_show_pass
             self.client_pass_entry.config(show="" if self.client_show_pass else "*")
             btn_show_client.config(text="Hide" if self.client_show_pass else "Show")
 
-        btn_show_client = ttk.Button(csec_row, text="Show", width=5, command=toggle_client_pass)
+        btn_show_client = tk.Button(
+            csec_row,
+            text="Show",
+            width=5,
+            bg=COLOR_BTN_SEC,
+            fg=COLOR_TEXT,
+            activebackground=COLOR_BTN_SEC_ACTIVE,
+            activeforeground="#ffffff",
+            relief=tk.FLAT,
+            command=toggle_client_pass,
+        )
         btn_show_client.pack(side=tk.RIGHT)
 
-        # Discovered computers box
-        disc_frame = ttk.LabelFrame(pad_frame, text="Discovered Desks on Local Network", padding=6)
+        # Discovered Computers Box
+        disc_frame = tk.LabelFrame(
+            parent,
+            text=" Discovered Desks on Local Network (Click to select) ",
+            font=(FONT_FAMILY, 9, "bold"),
+            bg=COLOR_BG_CARD,
+            fg=COLOR_TEXT,
+            bd=1,
+            relief=tk.SOLID,
+            padx=8,
+            pady=8,
+        )
         disc_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
         columns = ("name", "address", "security")
-        self.disc_tree = ttk.Treeview(disc_frame, columns=columns, show="headings", height=4, selectmode="browse")
+        self.disc_tree = ttk.Treeview(
+            disc_frame,
+            columns=columns,
+            show="headings",
+            height=4,
+            selectmode="browse",
+            style="Discovered.Treeview",
+        )
         self.disc_tree.heading("name", text="Device Name")
         self.disc_tree.heading("address", text="IP Address")
         self.disc_tree.heading("security", text="Protection")
@@ -275,28 +527,34 @@ class DeskLauncherApp:
 
         # Connect Button
         self.btn_connect = tk.Button(
-            pad_frame,
+            parent,
             text="Connect to Remote Computer",
-            font=("Segoe UI", 11, "bold"),
-            bg="#28a745",
+            font=(FONT_FAMILY, 12, "bold"),
+            bg=COLOR_BTN_GREEN,
             fg="#ffffff",
-            activebackground="#218838",
+            activebackground=COLOR_BTN_GREEN_ACTIVE,
             activeforeground="#ffffff",
             relief=tk.FLAT,
             height=2,
+            cursor="hand2",
             command=self._connect_client,
         )
-        self.btn_connect.pack(fill=tk.X, pady=(4, 0))
+        self.btn_connect.pack(fill=tk.X, pady=(2, 8))
 
-        # Quick-switch to Host mode
-        switch_frame_ctrl = ttk.Frame(pad_frame)
-        switch_frame_ctrl.pack(fill=tk.X, pady=(8, 0))
-        btn_switch_share = ttk.Button(
-            switch_frame_ctrl,
-            text="⬅ Switch to Host Mode (Share This Computer)",
-            command=lambda: self.notebook.select(self.tab_share),
+        # Bottom Switcher
+        btn_goto_share = tk.Button(
+            parent,
+            text="⬅ Want to share this screen instead? Switch to Host Mode",
+            font=(FONT_FAMILY, 9),
+            bg=COLOR_BG_CARD,
+            fg=COLOR_TEXT_MUTED,
+            activebackground=COLOR_BTN_SEC_ACTIVE,
+            activeforeground="#ffffff",
+            relief=tk.FLAT,
+            pady=6,
+            command=self._switch_to_share,
         )
-        btn_switch_share.pack(fill=tk.X)
+        btn_goto_share.pack(fill=tk.X)
 
     def _on_select_discovered(self, event):
         sel = self.disc_tree.selection()
@@ -357,7 +615,11 @@ class DeskLauncherApp:
         self.addr_var.set(f"{primary_ip}:{port}")
 
         self.server_running = True
-        self.btn_server_toggle.config(text="Stop Sharing", bg="#dc3545", activebackground="#c82333")
+        self.btn_server_toggle.config(
+            text="Stop Sharing",
+            bg=COLOR_BTN_RED,
+            activebackground=COLOR_BTN_RED_ACTIVE,
+        )
         sec_msg = " [Password Protected]" if password else " [No Password]"
         self.status_var.set(f"Server LISTENING on port {port}. Ready for connections.{sec_msg}")
 
@@ -379,7 +641,11 @@ class DeskLauncherApp:
         if self.server:
             asyncio.run_coroutine_threadsafe(self.server.stop(), self.server_loop)
         self.server_running = False
-        self.btn_server_toggle.config(text="Start Sharing", bg="#0066cc", activebackground="#0052a3")
+        self.btn_server_toggle.config(
+            text="Start Sharing",
+            bg=COLOR_BTN_BLUE,
+            activebackground=COLOR_BTN_BLUE_ACTIVE,
+        )
         self.status_var.set("Server stopped. Ready.")
 
     def _connect_client(self):
@@ -415,6 +681,7 @@ class DeskLauncherApp:
 
 
 def start_gui():
+    print(f"[Desk] Launching Desk GUI on {sys.platform}...")
     root = tk.Tk()
     app = DeskLauncherApp(root)
     root.mainloop()
