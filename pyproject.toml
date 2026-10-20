@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "desk"
 version = "1.0.0"
 description = "A self-contained Python remote-desk (screen sharing + remote control), modelled on AnyDesk."
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 dependencies = [
     "websockets>=12.0",
     "mss>=1.0",
