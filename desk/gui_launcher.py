@@ -5,6 +5,7 @@ Immune to macOS Dark Mode / Tkinter theme glitches.
 from __future__ import annotations
 import asyncio
 import logging
+import random
 import sys
 import threading
 import tkinter as tk
@@ -31,8 +32,12 @@ COLOR_BG_CARD = "#21252d"
 COLOR_BORDER = "#323742"
 COLOR_TEXT = "#f1f5f9"
 COLOR_TEXT_MUTED = "#94a3b8"
-COLOR_INPUT_BG = "#0f1115"
-COLOR_INPUT_FG = "#ffffff"
+
+# High-contrast input palette (unmistakable input fields on any OS)
+COLOR_INPUT_BG = "#ffffff"
+COLOR_INPUT_FG = "#0f172a"
+COLOR_INPUT_BORDER = "#475569"
+
 COLOR_BTN_BLUE = "#2563eb"
 COLOR_BTN_BLUE_ACTIVE = "#1d4ed8"
 COLOR_BTN_GREEN = "#16a34a"
@@ -47,8 +52,8 @@ class DeskLauncherApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("Desk - Remote Desktop")
-        self.root.geometry("600x670")
-        self.root.minsize(560, 600)
+        self.root.geometry("620x700")
+        self.root.minsize(560, 620)
         self.root.configure(bg=COLOR_BG_ROOT)
 
         self.server: DeskServer | None = None
@@ -73,17 +78,17 @@ class DeskLauncherApp:
         # Style treeview for discovered computers
         style.configure(
             "Discovered.Treeview",
-            background=COLOR_INPUT_BG,
-            foreground=COLOR_TEXT,
-            fieldbackground=COLOR_INPUT_BG,
-            borderwidth=0,
+            background="#0f1115",
+            foreground="#f1f5f9",
+            fieldbackground="#0f1115",
+            borderwidth=1,
             rowheight=26,
             font=(FONT_FAMILY, 9),
         )
         style.configure(
             "Discovered.Treeview.Heading",
             background=COLOR_BG_CARD,
-            foreground=COLOR_TEXT,
+            foreground="#f1f5f9",
             relief="flat",
             font=(FONT_FAMILY, 9, "bold"),
         )
@@ -112,46 +117,52 @@ class DeskLauncherApp:
         )
         subtitle.pack(side=tk.LEFT, pady=16)
 
-        # 2. Modern Navigation Tabs
+        # 2. Modern Navigation Bar (Uses tk.Label for 100% reliable clicks on macOS)
         nav_frame = tk.Frame(self.root, bg=COLOR_BG_HEADER, height=44)
         nav_frame.pack(fill=tk.X)
 
-        self.btn_nav_share = tk.Button(
+        self.tab_nav_share = tk.Label(
             nav_frame,
             text=" 📤 Share This Computer (Host) ",
             font=(FONT_FAMILY, 10, "bold"),
-            relief=tk.FLAT,
-            bd=0,
-            cursor="hand2",
-            padx=14,
+            bg=COLOR_BTN_BLUE,
+            fg="#ffffff",
+            padx=16,
             pady=8,
-            command=self._switch_to_share,
+            cursor="hand2",
+            relief=tk.FLAT,
         )
-        self.btn_nav_share.pack(side=tk.LEFT, padx=(18, 6), pady=(0, 8))
+        self.tab_nav_share.pack(side=tk.LEFT, padx=(18, 6), pady=(0, 6))
+        self.tab_nav_share.bind("<Button-1>", lambda e: self._switch_to_share())
 
-        self.btn_nav_client = tk.Button(
+        self.tab_nav_client = tk.Label(
             nav_frame,
             text=" 💻 Control Remote PC (Client) ",
             font=(FONT_FAMILY, 10, "bold"),
-            relief=tk.FLAT,
-            bd=0,
-            cursor="hand2",
-            padx=14,
+            bg=COLOR_BTN_SEC,
+            fg=COLOR_TEXT_MUTED,
+            padx=16,
             pady=8,
-            command=self._switch_to_client,
+            cursor="hand2",
+            relief=tk.FLAT,
         )
-        self.btn_nav_client.pack(side=tk.LEFT, padx=6, pady=(0, 8))
+        self.tab_nav_client.pack(side=tk.LEFT, padx=6, pady=(0, 6))
+        self.tab_nav_client.bind("<Button-1>", lambda e: self._switch_to_client())
 
-        # 3. Main Content Container
-        self.main_content = tk.Frame(self.root, bg=COLOR_BG_ROOT)
-        self.main_content.pack(fill=tk.BOTH, expand=True, padx=14, pady=10)
+        # 3. Main Content Container using Grid Stack (tkraise)
+        self.container = tk.Frame(self.root, bg=COLOR_BG_ROOT)
+        self.container.pack(fill=tk.BOTH, expand=True, padx=14, pady=10)
+        self.container.grid_rowconfigure(0, weight=1)
+        self.container.grid_columnconfigure(0, weight=1)
 
         # Tab 1: Share Container
-        self.share_container = tk.Frame(self.main_content, bg=COLOR_BG_ROOT)
+        self.share_container = tk.Frame(self.container, bg=COLOR_BG_ROOT)
+        self.share_container.grid(row=0, column=0, sticky="nsew")
         self._build_share_view(self.share_container)
 
         # Tab 2: Client Container
-        self.client_container = tk.Frame(self.main_content, bg=COLOR_BG_ROOT)
+        self.client_container = tk.Frame(self.container, bg=COLOR_BG_ROOT)
+        self.client_container.grid(row=0, column=0, sticky="nsew")
         self._build_client_view(self.client_container)
 
         # Start on Share view
@@ -174,40 +185,44 @@ class DeskLauncherApp:
         status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
     def _switch_to_share(self):
-        self.client_container.pack_forget()
-        self.share_container.pack(fill=tk.BOTH, expand=True)
-        self.btn_nav_share.config(bg=COLOR_BTN_BLUE, fg="#ffffff", activebackground=COLOR_BTN_BLUE_ACTIVE, activeforeground="#ffffff")
-        self.btn_nav_client.config(bg=COLOR_BTN_SEC, fg=COLOR_TEXT_MUTED, activebackground=COLOR_BTN_SEC_ACTIVE, activeforeground="#ffffff")
+        self.share_container.tkraise()
+        try:
+            self.tab_nav_share.config(bg=COLOR_BTN_BLUE, fg="#ffffff")
+            self.tab_nav_client.config(bg=COLOR_BTN_SEC, fg=COLOR_TEXT_MUTED)
+        except Exception:
+            pass
 
     def _switch_to_client(self):
-        self.share_container.pack_forget()
-        self.client_container.pack(fill=tk.BOTH, expand=True)
-        self.btn_nav_client.config(bg=COLOR_BTN_BLUE, fg="#ffffff", activebackground=COLOR_BTN_BLUE_ACTIVE, activeforeground="#ffffff")
-        self.btn_nav_share.config(bg=COLOR_BTN_SEC, fg=COLOR_TEXT_MUTED, activebackground=COLOR_BTN_SEC_ACTIVE, activeforeground="#ffffff")
+        self.client_container.tkraise()
+        try:
+            self.tab_nav_client.config(bg=COLOR_BTN_BLUE, fg="#ffffff")
+            self.tab_nav_share.config(bg=COLOR_BTN_SEC, fg=COLOR_TEXT_MUTED)
+        except Exception:
+            pass
 
     def _build_share_view(self, parent: tk.Frame):
         desc = tk.Label(
             parent,
-            text="Allow another computer to view and control this desktop.",
+            text="Allow another computer on your network to view and control this screen.",
             font=(FONT_FAMILY, 10),
             bg=COLOR_BG_ROOT,
             fg=COLOR_TEXT_MUTED,
         )
-        desc.pack(anchor=tk.W, pady=(0, 10))
+        desc.pack(anchor=tk.W, pady=(0, 8))
 
         # Box 1: Address
         addr_box = tk.LabelFrame(
             parent,
-            text=" Connection Address (Give this to peer) ",
+            text=" 📡 Connection Address (Give this to peer) ",
             font=(FONT_FAMILY, 9, "bold"),
             bg=COLOR_BG_CARD,
             fg=COLOR_TEXT,
             bd=1,
             relief=tk.SOLID,
             padx=12,
-            pady=10,
+            pady=8,
         )
-        addr_box.pack(fill=tk.X, pady=(0, 10))
+        addr_box.pack(fill=tk.X, pady=(0, 8))
 
         self.local_ips = get_local_ips()
         primary_ip = self.local_ips[0] if self.local_ips else "127.0.0.1"
@@ -222,12 +237,12 @@ class DeskLauncherApp:
             font=(FONT_MONO, 11, "bold"),
             bg=COLOR_INPUT_BG,
             fg=COLOR_INPUT_FG,
-            insertbackground="#ffffff",
-            relief=tk.FLAT,
-            bd=4,
+            insertbackground="#000000",
+            relief=tk.SOLID,
+            bd=1,
             state="readonly",
         )
-        self.addr_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        self.addr_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8), ipady=3)
 
         btn_copy = tk.Button(
             addr_row,
@@ -235,17 +250,15 @@ class DeskLauncherApp:
             width=7,
             bg=COLOR_BTN_SEC,
             fg=COLOR_TEXT,
-            activebackground=COLOR_BTN_SEC_ACTIVE,
-            activeforeground="#ffffff",
             relief=tk.FLAT,
             command=self._copy_address,
         )
         btn_copy.pack(side=tk.RIGHT)
 
-        # Box 2: Security (Password)
+        # Box 2: Security & Password/PIN
         sec_box = tk.LabelFrame(
             parent,
-            text=" Security & Authentication (Optional) ",
+            text=" 🔒 Security & Password (Optional) ",
             font=(FONT_FAMILY, 9, "bold"),
             bg=COLOR_BG_CARD,
             fg=COLOR_TEXT,
@@ -254,35 +267,36 @@ class DeskLauncherApp:
             padx=12,
             pady=10,
         )
-        sec_box.pack(fill=tk.X, pady=(0, 10))
+        sec_box.pack(fill=tk.X, pady=(0, 8))
 
-        sec_row = tk.Frame(sec_box, bg=COLOR_BG_CARD)
-        sec_row.pack(fill=tk.X)
+        # Row 1: Input field + Show/Hide + Generate PIN button
+        sec_input_row = tk.Frame(sec_box, bg=COLOR_BG_CARD)
+        sec_input_row.pack(fill=tk.X, pady=(0, 6))
 
         tk.Label(
-            sec_row,
+            sec_input_row,
             text="Password / PIN:",
-            font=(FONT_FAMILY, 10),
+            font=(FONT_FAMILY, 10, "bold"),
             bg=COLOR_BG_CARD,
             fg=COLOR_TEXT,
         ).pack(side=tk.LEFT, padx=(0, 8))
 
         self.host_pass_var = tk.StringVar(value="")
         self.host_pass_entry = tk.Entry(
-            sec_row,
+            sec_input_row,
             textvariable=self.host_pass_var,
-            show="*",
+            show="",
             font=(FONT_MONO, 11),
             bg=COLOR_INPUT_BG,
             fg=COLOR_INPUT_FG,
-            insertbackground="#ffffff",
-            relief=tk.FLAT,
-            bd=4,
+            insertbackground="#000000",
+            relief=tk.SOLID,
+            bd=1,
             width=14,
         )
-        self.host_pass_entry.pack(side=tk.LEFT, padx=(0, 8))
+        self.host_pass_entry.pack(side=tk.LEFT, padx=(0, 8), ipady=3)
 
-        self.host_show_pass = False
+        self.host_show_pass = True
 
         def toggle_host_pass():
             self.host_show_pass = not self.host_show_pass
@@ -290,59 +304,102 @@ class DeskLauncherApp:
             btn_show_host.config(text="Hide" if self.host_show_pass else "Show")
 
         btn_show_host = tk.Button(
-            sec_row,
-            text="Show",
+            sec_input_row,
+            text="Hide",
             width=5,
             bg=COLOR_BTN_SEC,
             fg=COLOR_TEXT,
-            activebackground=COLOR_BTN_SEC_ACTIVE,
-            activeforeground="#ffffff",
             relief=tk.FLAT,
             command=toggle_host_pass,
         )
         btn_show_host.pack(side=tk.LEFT, padx=(0, 8))
 
         def generate_pin():
-            import random
             pin = f"{random.randint(100000, 999999)}"
             self.host_pass_var.set(pin)
             self.host_show_pass = True
             self.host_pass_entry.config(show="")
             btn_show_host.config(text="Hide")
+            # Update prominent badge
+            self.lbl_pin_display.config(
+                text=f"🔑 Generated PIN:  {pin}",
+                fg="#22c55e",
+            )
+            self.btn_copy_pin.pack(side=tk.RIGHT)
 
         btn_pin = tk.Button(
-            sec_row,
-            text="Generate PIN",
+            sec_input_row,
+            text="🎲 Generate PIN",
+            font=(FONT_FAMILY, 9, "bold"),
             bg=COLOR_BTN_SEC,
             fg=COLOR_TEXT,
-            activebackground=COLOR_BTN_SEC_ACTIVE,
-            activeforeground="#ffffff",
             relief=tk.FLAT,
             command=generate_pin,
         )
         btn_pin.pack(side=tk.LEFT)
 
+        # Row 2: Prominent PIN / Password Banner
+        pin_banner_frame = tk.Frame(sec_box, bg=COLOR_BG_CARD)
+        pin_banner_frame.pack(fill=tk.X, pady=(4, 0))
+
+        self.lbl_pin_display = tk.Label(
+            pin_banner_frame,
+            text="Leave blank for open access, or type a custom password above.",
+            font=(FONT_FAMILY, 9),
+            bg=COLOR_BG_CARD,
+            fg=COLOR_TEXT_MUTED,
+        )
+        self.lbl_pin_display.pack(side=tk.LEFT)
+
+        def copy_pin():
+            val = self.host_pass_var.get()
+            if val:
+                self.root.clipboard_clear()
+                self.root.clipboard_append(val)
+                self.status_var.set(f"Copied PIN '{val}' to clipboard.")
+
+        self.btn_copy_pin = tk.Button(
+            pin_banner_frame,
+            text="📋 Copy PIN",
+            font=(FONT_FAMILY, 8, "bold"),
+            bg=COLOR_BTN_SEC,
+            fg=COLOR_TEXT,
+            relief=tk.FLAT,
+            command=copy_pin,
+        )
+        # Hidden initially until PIN generated
+        self.btn_copy_pin.pack_forget()
+
         # Box 3: Options (Port, FPS, Quality)
         opts_box = tk.LabelFrame(
             parent,
-            text=" Streaming Settings ",
+            text=" ⚙️ Streaming Settings ",
             font=(FONT_FAMILY, 9, "bold"),
             bg=COLOR_BG_CARD,
             fg=COLOR_TEXT,
             bd=1,
             relief=tk.SOLID,
             padx=12,
-            pady=10,
+            pady=8,
         )
-        opts_box.pack(fill=tk.X, pady=(0, 14))
+        opts_box.pack(fill=tk.X, pady=(0, 10))
 
         opts_row = tk.Frame(opts_box, bg=COLOR_BG_CARD)
         opts_row.pack(fill=tk.X)
 
         tk.Label(opts_row, text="Port:", font=(FONT_FAMILY, 9), bg=COLOR_BG_CARD, fg=COLOR_TEXT_MUTED).pack(side=tk.LEFT, padx=(0, 4))
         self.port_var = tk.StringVar(value="8765")
-        port_entry = tk.Entry(opts_row, textvariable=self.port_var, width=6, bg=COLOR_INPUT_BG, fg=COLOR_INPUT_FG, insertbackground="#ffffff", relief=tk.FLAT, bd=3)
-        port_entry.pack(side=tk.LEFT, padx=(0, 16))
+        port_entry = tk.Entry(
+            opts_row,
+            textvariable=self.port_var,
+            width=6,
+            bg=COLOR_INPUT_BG,
+            fg=COLOR_INPUT_FG,
+            insertbackground="#000000",
+            relief=tk.SOLID,
+            bd=1,
+        )
+        port_entry.pack(side=tk.LEFT, padx=(0, 16), ipady=2)
 
         tk.Label(opts_row, text="FPS:", font=(FONT_FAMILY, 9), bg=COLOR_BG_CARD, fg=COLOR_TEXT_MUTED).pack(side=tk.LEFT, padx=(0, 4))
         self.fps_var = tk.StringVar(value="30")
@@ -361,24 +418,20 @@ class DeskLauncherApp:
             font=(FONT_FAMILY, 12, "bold"),
             bg=COLOR_BTN_BLUE,
             fg="#ffffff",
-            activebackground=COLOR_BTN_BLUE_ACTIVE,
-            activeforeground="#ffffff",
             relief=tk.FLAT,
             height=2,
             cursor="hand2",
             command=self._toggle_server,
         )
-        self.btn_server_toggle.pack(fill=tk.X, pady=(4, 8))
+        self.btn_server_toggle.pack(fill=tk.X, pady=(4, 6))
 
         # Bottom Switcher
         btn_goto_client = tk.Button(
             parent,
-            text="👉 Want to control another computer instead? Switch to Client Mode",
+            text="👉 Want to control another computer instead? Switch to Client Mode ➔",
             font=(FONT_FAMILY, 9),
             bg=COLOR_BG_CARD,
             fg=COLOR_TEXT_MUTED,
-            activebackground=COLOR_BTN_SEC_ACTIVE,
-            activeforeground="#ffffff",
             relief=tk.FLAT,
             pady=6,
             command=self._switch_to_client,
@@ -393,21 +446,21 @@ class DeskLauncherApp:
             bg=COLOR_BG_ROOT,
             fg=COLOR_TEXT_MUTED,
         )
-        desc.pack(anchor=tk.W, pady=(0, 10))
+        desc.pack(anchor=tk.W, pady=(0, 8))
 
         # Target Address Box
         target_box = tk.LabelFrame(
             parent,
-            text=" Remote Computer Address ",
+            text=" 🖥️ Remote Computer Address ",
             font=(FONT_FAMILY, 9, "bold"),
             bg=COLOR_BG_CARD,
             fg=COLOR_TEXT,
             bd=1,
             relief=tk.SOLID,
             padx=12,
-            pady=10,
+            pady=8,
         )
-        target_box.pack(fill=tk.X, pady=(0, 10))
+        target_box.pack(fill=tk.X, pady=(0, 8))
 
         self.remote_addr_var = tk.StringVar(value="")
         self.remote_entry = tk.Entry(
@@ -416,11 +469,11 @@ class DeskLauncherApp:
             font=(FONT_MONO, 11),
             bg=COLOR_INPUT_BG,
             fg=COLOR_INPUT_FG,
-            insertbackground="#ffffff",
-            relief=tk.FLAT,
-            bd=4,
+            insertbackground="#000000",
+            relief=tk.SOLID,
+            bd=1,
         )
-        self.remote_entry.pack(fill=tk.X, pady=(0, 4))
+        self.remote_entry.pack(fill=tk.X, pady=(0, 4), ipady=3)
 
         tk.Label(
             target_box,
@@ -433,16 +486,16 @@ class DeskLauncherApp:
         # Client Password Box
         client_sec_box = tk.LabelFrame(
             parent,
-            text=" Password (if remote host is protected) ",
+            text=" 🔒 Password (if remote host is protected) ",
             font=(FONT_FAMILY, 9, "bold"),
             bg=COLOR_BG_CARD,
             fg=COLOR_TEXT,
             bd=1,
             relief=tk.SOLID,
             padx=12,
-            pady=10,
+            pady=8,
         )
-        client_sec_box.pack(fill=tk.X, pady=(0, 10))
+        client_sec_box.pack(fill=tk.X, pady=(0, 8))
 
         csec_row = tk.Frame(client_sec_box, bg=COLOR_BG_CARD)
         csec_row.pack(fill=tk.X)
@@ -450,7 +503,7 @@ class DeskLauncherApp:
         tk.Label(
             csec_row,
             text="Password / PIN:",
-            font=(FONT_FAMILY, 10),
+            font=(FONT_FAMILY, 10, "bold"),
             bg=COLOR_BG_CARD,
             fg=COLOR_TEXT,
         ).pack(side=tk.LEFT, padx=(0, 8))
@@ -463,12 +516,12 @@ class DeskLauncherApp:
             font=(FONT_MONO, 11),
             bg=COLOR_INPUT_BG,
             fg=COLOR_INPUT_FG,
-            insertbackground="#ffffff",
-            relief=tk.FLAT,
-            bd=4,
+            insertbackground="#000000",
+            relief=tk.SOLID,
+            bd=1,
             width=16,
         )
-        self.client_pass_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        self.client_pass_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8), ipady=3)
 
         self.client_show_pass = False
 
@@ -483,8 +536,6 @@ class DeskLauncherApp:
             width=5,
             bg=COLOR_BTN_SEC,
             fg=COLOR_TEXT,
-            activebackground=COLOR_BTN_SEC_ACTIVE,
-            activeforeground="#ffffff",
             relief=tk.FLAT,
             command=toggle_client_pass,
         )
@@ -493,16 +544,16 @@ class DeskLauncherApp:
         # Discovered Computers Box
         disc_frame = tk.LabelFrame(
             parent,
-            text=" Discovered Desks on Local Network (Click to select) ",
+            text=" 🔍 Discovered Desks on Local Network (Click to select) ",
             font=(FONT_FAMILY, 9, "bold"),
             bg=COLOR_BG_CARD,
             fg=COLOR_TEXT,
             bd=1,
             relief=tk.SOLID,
             padx=8,
-            pady=8,
+            pady=6,
         )
-        disc_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        disc_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
 
         columns = ("name", "address", "security")
         self.disc_tree = ttk.Treeview(
@@ -532,14 +583,12 @@ class DeskLauncherApp:
             font=(FONT_FAMILY, 12, "bold"),
             bg=COLOR_BTN_GREEN,
             fg="#ffffff",
-            activebackground=COLOR_BTN_GREEN_ACTIVE,
-            activeforeground="#ffffff",
             relief=tk.FLAT,
             height=2,
             cursor="hand2",
             command=self._connect_client,
         )
-        self.btn_connect.pack(fill=tk.X, pady=(2, 8))
+        self.btn_connect.pack(fill=tk.X, pady=(2, 6))
 
         # Bottom Switcher
         btn_goto_share = tk.Button(
@@ -548,8 +597,6 @@ class DeskLauncherApp:
             font=(FONT_FAMILY, 9),
             bg=COLOR_BG_CARD,
             fg=COLOR_TEXT_MUTED,
-            activebackground=COLOR_BTN_SEC_ACTIVE,
-            activeforeground="#ffffff",
             relief=tk.FLAT,
             pady=6,
             command=self._switch_to_share,
@@ -618,7 +665,6 @@ class DeskLauncherApp:
         self.btn_server_toggle.config(
             text="Stop Sharing",
             bg=COLOR_BTN_RED,
-            activebackground=COLOR_BTN_RED_ACTIVE,
         )
         sec_msg = " [Password Protected]" if password else " [No Password]"
         self.status_var.set(f"Server LISTENING on port {port}. Ready for connections.{sec_msg}")
@@ -644,7 +690,6 @@ class DeskLauncherApp:
         self.btn_server_toggle.config(
             text="Start Sharing",
             bg=COLOR_BTN_BLUE,
-            activebackground=COLOR_BTN_BLUE_ACTIVE,
         )
         self.status_var.set("Server stopped. Ready.")
 
