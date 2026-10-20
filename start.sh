@@ -18,5 +18,8 @@ else
     exit 1
 fi
 
+# Ensure local repository code is loaded first
+export PYTHONPATH="$SCRIPT_DIR:${PYTHONPATH:-}"
+
 echo "Starting Desk Remote Desktop Interface..."
 exec "$PYTHON_BIN" -m desk gui "$@"

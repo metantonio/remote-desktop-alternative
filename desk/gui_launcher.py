@@ -4,6 +4,7 @@ Provides a user-friendly GUI to either share this screen or control a remote mac
 from __future__ import annotations
 import asyncio
 import logging
+import sys
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -23,15 +24,17 @@ class DeskLauncherApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("Desk - Remote Desktop")
-        self.root.geometry("560x580")
-        self.root.resizable(False, False)
+        self.root.geometry("580x650")
+        self.root.minsize(540, 580)
+        self.root.resizable(True, True)
 
-        # Style configuration
+        # Style configuration - use native 'aqua' on macOS, 'clam' on Linux/Windows
         self.style = ttk.Style()
-        try:
-            self.style.theme_use("clam")
-        except Exception:
-            pass
+        if sys.platform != "darwin":
+            try:
+                self.style.theme_use("clam")
+            except Exception:
+                pass
 
         self.server: DeskServer | None = None
         self.server_thread: threading.Thread | None = None
@@ -69,17 +72,17 @@ class DeskLauncherApp:
         subtitle_label.pack(side=tk.LEFT, pady=18)
 
         # Main notebook/tabs container
-        notebook = ttk.Notebook(self.root)
-        notebook.pack(fill=tk.BOTH, expand=True, padx=12, pady=10)
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=12, pady=10)
 
         # Tab 1: Share this screen (Server)
-        self.tab_share = ttk.Frame(notebook)
-        notebook.add(self.tab_share, text=" Share This Computer (Host) ")
+        self.tab_share = ttk.Frame(self.notebook)
+        self.notebook.add(self.tab_share, text=" 📤 Share This Computer (Host) ")
         self._build_share_tab(self.tab_share)
 
         # Tab 2: Control remote screen (Client)
-        self.tab_control = ttk.Frame(notebook)
-        notebook.add(self.tab_control, text=" Control Remote PC (Client) ")
+        self.tab_control = ttk.Frame(self.notebook)
+        self.notebook.add(self.tab_control, text=" 💻 Control Remote PC (Client) ")
         self._build_control_tab(self.tab_control)
 
         # Status Bar
@@ -191,6 +194,16 @@ class DeskLauncherApp:
         )
         self.btn_server_toggle.pack(fill=tk.X, pady=(4, 0))
 
+        # Quick-switch to Client mode
+        switch_frame = ttk.Frame(pad_frame)
+        switch_frame.pack(fill=tk.X, pady=(10, 0))
+        btn_switch_client = ttk.Button(
+            switch_frame,
+            text="Switch to Client Mode (Control Another PC) ➔",
+            command=lambda: self.notebook.select(self.tab_control),
+        )
+        btn_switch_client.pack(fill=tk.X)
+
     def _build_control_tab(self, parent: ttk.Frame):
         pad_frame = ttk.Frame(parent, padding=12)
         pad_frame.pack(fill=tk.BOTH, expand=True)
@@ -274,6 +287,16 @@ class DeskLauncherApp:
             command=self._connect_client,
         )
         self.btn_connect.pack(fill=tk.X, pady=(4, 0))
+
+        # Quick-switch to Host mode
+        switch_frame_ctrl = ttk.Frame(pad_frame)
+        switch_frame_ctrl.pack(fill=tk.X, pady=(8, 0))
+        btn_switch_share = ttk.Button(
+            switch_frame_ctrl,
+            text="⬅ Switch to Host Mode (Share This Computer)",
+            command=lambda: self.notebook.select(self.tab_share),
+        )
+        btn_switch_share.pack(fill=tk.X)
 
     def _on_select_discovered(self, event):
         sel = self.disc_tree.selection()
