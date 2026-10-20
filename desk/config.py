@@ -5,7 +5,7 @@ import os
 
 class Config:
     def __init__(self, **kw):
-        self.host = kw.get("host", os.getenv("DESK_HOST", "127.0.0.1"))
+        self.host = kw.get("host", os.getenv("DESK_HOST", "0.0.0.0"))
         self.port = int(kw.get("port", os.getenv("DESK_PORT", "8765")))
         self.discovery_port = int(kw.get("discovery_port", "8766"))
         self.quality = int(kw.get("quality", "80"))          # jpeg quality

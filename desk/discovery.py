@@ -97,6 +97,11 @@ class BeaconListener:
         try:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if hasattr(socket, "SO_REUSEPORT"):
+                try:
+                    self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+                except Exception:
+                    pass
             self._sock.bind(("0.0.0.0", self.discovery_port))
             self._sock.settimeout(1.0)
         except Exception as ex:

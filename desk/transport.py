@@ -75,7 +75,7 @@ class DeskWS:
 
     async def start(self):
         self._server = await websockets.serve(
-            self._handler, self.host, self.port, ping_interval=None)
+            self._handler, self.host, self.port, ping_interval=None, max_size=32 * 1024 * 1024)
 
     async def stop(self):
         self._stop.set()
@@ -133,7 +133,7 @@ class DeskClient:
         self._closed = False
 
     async def connect(self):
-        self.ws = await websockets.connect(self.uri)
+        self.ws = await websockets.connect(self.uri, ping_interval=None, max_size=32 * 1024 * 1024)
 
     async def close(self):
         self._closed = True

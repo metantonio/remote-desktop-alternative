@@ -19,19 +19,39 @@ A self-contained remote desktop and screen-sharing system written in Python, mod
 
 ## 📦 Requirements & Installation
 
-The project uses the dependencies specified in `pyproject.toml`.
+- **Python Version**: Python `>=3.9`
 
-Ensure your virtual environment is activated:
+### On Windows
 
+In PowerShell:
 ```powershell
-# In Windows PowerShell:
+# 1. Create virtual environment:
+python -m venv .venv
+
+# 2. Activate virtual environment:
 .\.venv\Scripts\Activate.ps1
 
-# Install package with GUI and development dependencies:
+# 3. Install package with GUI and development dependencies:
+pip install --upgrade pip
 pip install -e .[gui,dev]
 ```
 
-*(Note: On Python 3.14+, `pygame-ce` is supported and installed for SDL2 GUI rendering).*
+### On macOS / Linux
+
+In Terminal (bash / zsh):
+```bash
+# 1. Create virtual environment:
+python3 -m venv .venv
+
+# 2. Activate virtual environment:
+source .venv/bin/activate
+
+# 3. Install package (quotes around ".[gui,dev]" are required in zsh):
+pip install --upgrade pip
+pip install -e ".[gui,dev]"
+```
+
+*(Note: On Python 3.14+, `pygame-ce` is automatically chosen for modern SDL2 support).*
 
 ---
 

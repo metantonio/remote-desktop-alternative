@@ -80,7 +80,11 @@ class Capture:
                 except (IndexError, KeyError):
                     monitor = m.monitors[1] if len(m.monitors) > 1 else m.monitors[0]
             sct_img = m.grab(monitor)
-            return Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+            # Try sct_img.rgb first for macOS, Linux and Windows
+            try:
+                return Image.frombytes("RGB", sct_img.size, sct_img.rgb)
+            except Exception:
+                return Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
         except Exception as ex:
             log.debug("mss grab failed: %s, trying ImageGrab fallback", ex)
 

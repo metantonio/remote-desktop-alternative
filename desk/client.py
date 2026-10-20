@@ -54,6 +54,8 @@ class RemoteClient:
         self.remote_h = 0
         self.auth_status = "pending"
         self.auth_error = ""
+        self.is_connecting = True
+        self.error_message = ""
         self._running = False
         self._lock = threading.Lock()
         self._frame_q = queue.Queue(maxsize=128)
@@ -70,7 +72,19 @@ class RemoteClient:
                 break
 
     async def run(self):
-        await self.client.connect()
+        self.is_connecting = True
+        try:
+            await self.client.connect()
+        except Exception as ex:
+            self.is_connecting = False
+            self._running = False
+            self.error_message = f"Connection failed: {ex}"
+            log.warning("Could not connect to %s: %s", self.uri, ex)
+            return
+
+        self.is_connecting = False
+        self._running = True
+
         hello_data = {
             "role": "client",
             "name": "desk-client",
@@ -80,8 +94,13 @@ class RemoteClient:
         }
         if self.password:
             hello_data["password"] = self.password
-        await self.client.push_frame(protocol.enc_hello(**hello_data))
-        self._running = True
+        try:
+            await self.client.push_frame(protocol.enc_hello(**hello_data))
+        except Exception as ex:
+            self.error_message = f"Greeting failed: {ex}"
+            self._running = False
+            return
+
         hb = asyncio.create_task(self._heartbeat())
         try:
             async for obj in self.client.frames():
@@ -90,10 +109,13 @@ class RemoteClient:
                     if data.get("auth") == "unauthorized":
                         self.auth_status = "failed"
                         self.auth_error = data.get("error", "Invalid password")
+                        self.error_message = f"Access denied: {self.auth_error}"
                     else:
                         self.auth_status = "ok"
                 elif kind == "screen":
                     self.remote_w, self.remote_h = data
+                elif kind == "log":
+                    log.info("Server log: %s", data)
                 if self.on_frame:
                     try:
                         res = self.on_frame(kind, data)
@@ -111,13 +133,18 @@ class RemoteClient:
                         pass
         except asyncio.CancelledError:
             pass
+        except Exception as ex:
+            self.error_message = f"Connection error: {ex}"
         finally:
             hb.cancel()
             try:
                 await self.client.close()
             except Exception:
                 pass
-        self._running = False
+            self._running = False
+            self.is_connecting = False
+            if not self.error_message:
+                self.error_message = "Session closed."
 
     def start_background(self, on_frame: Optional[Callable] = None):
         if on_frame:
@@ -198,7 +225,7 @@ class RemoteClient:
             pass
 
     def is_alive(self):
-        return self._running
+        return self._running or self.is_connecting
 
 
 class FrameQueue:
@@ -237,7 +264,7 @@ class GuiClient:
         self.remote.start_background(self._on_remote_frame)
         clock = pygame.time.Clock()
         try:
-            while self.running and self.remote.is_alive():
+            while self.running:
                 self._process_events()
                 self._draw()
                 pygame.display.flip()
@@ -299,8 +326,11 @@ class GuiClient:
                     rx, ry = coords
                     self.remote.send_move_sync(rx, ry)
             elif e.type == pygame.KEYDOWN:
-                if e.key == pygame.K_ESCAPE and (pygame.key.get_mods() & pygame.KMOD_SHIFT):
-                    self.running = False
+                if e.key == pygame.K_ESCAPE:
+                    if (pygame.key.get_mods() & pygame.KMOD_SHIFT) or not self.remote.is_alive():
+                        self.running = False
+                    else:
+                        self._send_key(e.key, 1)
                 else:
                     self._send_key(e.key, 1)
             elif e.type == pygame.KEYUP:
@@ -336,7 +366,7 @@ class GuiClient:
         self.screen.fill((20, 20, 25))
         rw, rh = self.remote.remote_w, self.remote.remote_h
         sw, sh = self.screen.get_size()
-        if rw > 0 and rh > 0 and self._surface is not None:
+        if rw > 0 and rh > 0 and self._surface is not None and self.remote._running:
             scale = min(sw / rw, sh / rh)
             dw = max(1, int(rw * scale))
             dh = max(1, int(rh * scale))
@@ -347,15 +377,24 @@ class GuiClient:
             pygame.draw.rect(self.screen, (70, 70, 80), (ox, oy, dw, dh), 1)
         else:
             if self.remote.auth_status == "failed":
-                msg = f"ACCESS DENIED: {self.remote.auth_error or 'Invalid password'}."
-                txt = self._font.render(msg, True, (255, 80, 80))
+                msg = f"ACCESS DENIED: {self.remote.auth_error or 'Invalid password'}"
+                color = (255, 90, 90)
+            elif self.remote.is_connecting:
+                msg = f"Connecting to {self.uri}..."
+                color = (180, 180, 230)
             elif self.remote.is_alive():
-                msg = "Connecting to remote desk..."
-                txt = self._font.render(msg, True, (180, 180, 190))
+                msg = "Connected. Waiting for display stream..."
+                color = (160, 220, 160)
             else:
-                msg = "Disconnected."
-                txt = self._font.render(msg, True, (180, 180, 190))
+                err = self.remote.error_message or "Connection closed"
+                msg = f"DISCONNECTED: {err}"
+                color = (255, 120, 120)
+
+            txt = self._font.render(msg, True, color)
             self.screen.blit(txt, (sw // 2 - txt.get_width() // 2, sh // 2 - txt.get_height() // 2))
+
+            sub_txt = self._font.render("Press Shift+ESC or close window to exit", True, (130, 130, 140))
+            self.screen.blit(sub_txt, (sw // 2 - sub_txt.get_width() // 2, sh // 2 + 25))
 
         # Status overlay at top
         status = f"desk [{self.uri}] - {rw}x{rh} | Shift+ESC to exit"
